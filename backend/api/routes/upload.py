@@ -1,10 +1,13 @@
 import hashlib
 import os
 import shutil
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from typing import Dict, Any
 from pathlib import Path
 import asyncio
+from sqlalchemy.ext.asyncio import AsyncSession
+from backend.db.session import get_session
+from backend.db.models import ResearchPaper, ExtractionLayer
 
 router = APIRouter()
 
@@ -12,7 +15,10 @@ UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 @router.post("/upload")
-async def upload_pdf(file: UploadFile = File(...)) -> Dict[str, Any]:
+async def upload_pdf(
+    file: UploadFile = File(...),
+    session: AsyncSession = Depends(get_session)
+) -> Dict[str, Any]:
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
@@ -28,10 +34,27 @@ async def upload_pdf(file: UploadFile = File(...)) -> Dict[str, Any]:
     with save_path.open("wb") as f:
         f.write(contents)
 
+    paper = ResearchPaper(
+        matdao_id=file_hash,
+        doi=mock_doi,
+        title=file.filename,
+    )
+    session.add(paper)
+    await session.commit()
+    await session.refresh(paper)
+
+    layer = ExtractionLayer(
+        paper_id=paper.id,
+        layer_number=1,
+        source="glmocr",
+        status="pending"
+    )
+    session.add(layer)
+    await session.commit()
+
     # In production, we would queue this to GLM-OCR here.
     # For now, simulate 3-second OCR pipeline wait for the 60% automated tier
     await asyncio.sleep(2)
-    
     return {
         "status": "success",
         "mock_doi": mock_doi,

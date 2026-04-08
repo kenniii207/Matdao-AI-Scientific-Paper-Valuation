@@ -1,9 +1,8 @@
-"""Docker Compose for MatDAO local development.
-
-Services:
-- grobid: Layer 1 NLP extraction (port 8070)
-- postgres: PostgreSQL 16 with pgvector (port 5432)
-"""
+# Docker Compose for MatDAO local development.
+#
+# Services:
+# - grobid: Layer 1 NLP extraction (port 8070)
+# - postgres: PostgreSQL 16 with pgvector (port 5432)
 
 services:
   grobid:

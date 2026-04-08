@@ -9,11 +9,14 @@ from fastapi.responses import JSONResponse
 from backend.core.config import settings
 from backend.core.exceptions import MatDAOBaseError
 from backend.api.routes import papers, scoring, upload
-
+from backend.db.session import engine
+from backend.db.models import Base
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup/shutdown lifecycle."""
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     yield
 
 
