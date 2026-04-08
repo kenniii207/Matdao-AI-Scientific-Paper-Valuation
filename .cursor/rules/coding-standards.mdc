@@ -1,0 +1,21 @@
+---
+alwaysApply: true
+---
+
+# MatDAO Coding Standards
+
+## Stack
+- Backend: FastAPI (Python 3.11+), Pydantic v2, asyncio
+- Frontend: Next.js 14+ (App Router), TypeScript mandatory, Tailwind CSS, Zustand
+- DB: PostgreSQL + pgvector
+- OCR: Grobid (port 8070) + GLM-OCR (cloud or self-hosted)
+
+## Rules
+- Pydantic v2 for ALL data models. Validate API responses at runtime boundary.
+- No code comments unless explaining "Why", not "What". Self-documenting names.
+- Adapter pattern: one class per API provider in `backend/api/adapters/`.
+- Scoring logic ONLY in `backend/services/scoring/`.
+- Every automated score links to `origin_snippet` (API JSON or PDF text fragment).
+- Search existing patterns before creating new ones ("Search First, Reuse Second").
+- Atomic commits: `feat:/fix:/test:/docs:/chore:`. One thing per commit.
+- Run verification (pytest/npm test) BEFORE claiming completion.

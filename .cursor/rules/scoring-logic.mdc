@@ -1,0 +1,25 @@
+---
+alwaysApply: true
+glob: "backend/services/scoring/**"
+---
+
+# Scoring Logic Rules
+
+## Formula
+Total = Σ(Score_i × Weight_i / 5 × 100)
+- Score_i: raw 1-5 per dimension
+- Weight_i: importance weight (Σ = 1.0, MVP = 1/9 each)
+
+## Integrity Gate (Dimension 9)
+BINARY MULTIPLIER. If Dimension 9 score = 1 (retraction/ethical breach found):
+→ Total Score = 0. No exceptions. No override.
+
+## Grade Mapping
+- 90-100: A (Highly Recommended / Alpha Tier)
+- 80-89:  B (Recommended / Beta Tier)
+- 70-79:  C (Neutral / Gamma Tier)
+- 60-69:  D (Not Recommended / Delta Tier)
+- <60:    F (Rejected / Omega Tier)
+
+## Origin Traceability
+Every score MUST link to origin_snippet — the API response or PDF text that produced it.

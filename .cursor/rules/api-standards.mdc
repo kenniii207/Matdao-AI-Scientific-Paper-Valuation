@@ -1,0 +1,29 @@
+---
+alwaysApply: true
+glob: "backend/api/adapters/**"
+---
+
+# API Adapter Standards
+
+## Architecture
+Each provider = one adapter class inheriting BaseAdapter.
+All in `backend/api/adapters/`.
+
+## Rate Limits (enforce strictly)
+| Provider          | Rate               | Auth             |
+|-------------------|--------------------|------------------|
+| OpenAlex          | 100 req/sec w/ key | api_key URL param|
+| Semantic Scholar  | 100 req/sec w/ key | x-api-key header |
+| Crossref          | 50 req/min         | mailto: header   |
+| NIH RePORTER      | 1 req/sec          | none             |
+| OSF               | reasonable         | none             |
+| ClinicalTrials    | reasonable         | none             |
+
+## Error Handling
+- 429 Too Many Requests → exponential backoff (base 1s, max 60s, jitter)
+- Inspect `x-ratelimit-remaining` header when available
+- Log all API failures with request context
+
+## Politeness
+- Crossref: use "polite pool" by setting mailto in User-Agent
+- NIH RePORTER: respect 1 req/sec — never burst
