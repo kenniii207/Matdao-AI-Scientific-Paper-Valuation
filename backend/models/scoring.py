@@ -71,6 +71,10 @@ class ScoringResult(BaseModel):
         default=False,
         description="True if Dimension 9 = 1 → total forced to 0",
     )
+    confidence_tier: str = Field(
+        default="AUTOMATED_60",
+        description="Current fidelity of the score (AUTOMATED_60, AGENCY_88, EXPERT_100)"
+    )
 
     @computed_field
     @property

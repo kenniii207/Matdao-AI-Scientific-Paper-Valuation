@@ -16,3 +16,4 @@ pytest-asyncio>=0.24.0
 # OCR / PDF (optional, for Layer 1)
 # glmocr  # GLM-OCR SDK
 # pdf2zh  # PDFMathTranslate
+python-multipart==0.0.9

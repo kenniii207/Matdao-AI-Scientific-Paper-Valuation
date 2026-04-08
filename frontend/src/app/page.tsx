@@ -1,149 +1,190 @@
 'use client';
 
-import { useState } from 'react';
-import { Search, FileText, Shield, TrendingUp, AlertTriangle } from 'lucide-react';
-
-const DIMENSION_NAMES = [
-  'Return on Research Investment',
-  'Scientific Quality & Rigor',
-  'Market Size & Scalability',
-  'Competitive Moat & IP',
-  'Team Quality & Track Record',
-  'Societal Impact & ESG',
-  'Research Pipeline Risk',
-  'Risk & Uncertainty Profile',
-  'Governance & Transparency',
-];
+import { useState, useRef } from 'react';
+import { Shield, Upload, FileText, Briefcase, Zap, AlertTriangle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function DashboardPage() {
-  const [doi, setDoi] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const [persona, setPersona] = useState<'RESEARCHER' | 'INVESTOR'>('INVESTOR');
+  const [isUploading, setIsUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!doi.trim()) return;
-    setIsLoading(true);
+  const handleFileUpload = async (file: File) => {
+    setIsUploading(true);
     try {
-      const res = await fetch('/api/papers/evaluate', {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const res = await fetch('/api/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ doi: doi.trim() }),
+        body: formData,
       });
       const data = await res.json();
-      console.log('Evaluation submitted:', data);
+      
+      if (res.ok && data.mock_doi) {
+        // Reroute to the new paper URL passing the DOI surrogate
+        // Note: encoding the slash because DOIs contain slashes.
+        const encodedDoi = encodeURIComponent(data.mock_doi);
+        router.push(`/papers/${encodedDoi}`);
+      } else {
+        alert(data.detail || 'Upload failed');
+      }
     } catch (err) {
       console.error('Submission failed:', err);
+      alert('Network error during upload');
     } finally {
-      setIsLoading(false);
+      setIsUploading(false);
+    }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
     }
   };
 
   return (
     <main className="min-h-screen px-6 py-12 max-w-7xl mx-auto">
       {/* Header */}
-      <header className="mb-16 animate-fade-up">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-            <Shield className="w-5 h-5 text-white" />
+      <header className="mb-12 animate-fade-up flex justify-between items-end">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <Shield className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
+              MatDAO
+            </h1>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-            MatDAO
-          </h1>
+          <p className="text-slate-400 text-lg ml-[52px]">
+            Automated Scientific Due Diligence Platform
+          </p>
         </div>
-        <p className="text-slate-400 text-lg ml-[52px]">
-          Automated Scientific Due Diligence Platform
-        </p>
+        
+        {/* Persona Toggle */}
+        <div className="flex bg-slate-800/50 p-1 rounded-xl border border-slate-700/50">
+          <button
+            onClick={() => setPersona('RESEARCHER')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              persona === 'RESEARCHER' 
+                ? 'bg-slate-700 text-white shadow-sm' 
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <FileText className="w-4 h-4" /> Researcher
+            </div>
+          </button>
+          <button
+            onClick={() => setPersona('INVESTOR')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              persona === 'INVESTOR' 
+                ? 'bg-indigo-500 text-white shadow-sm shadow-indigo-500/20' 
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4" /> Investor
+            </div>
+          </button>
+        </div>
       </header>
 
-      {/* Paper Submission */}
-      <section className="glass-card p-8 mb-12 animate-fade-up animate-delay-1" id="paper-submit">
-        <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-          <FileText className="w-5 h-5 text-indigo-400" />
-          Evaluate a Research Paper
-        </h2>
-        <form onSubmit={handleSubmit} className="flex gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-            <input
-              id="doi-input"
-              type="text"
-              value={doi}
-              onChange={(e) => setDoi(e.target.value)}
-              placeholder="Enter DOI (e.g., 10.1038/s41586-020-2649-2)"
-              className="w-full pl-12 pr-4 py-3 bg-slate-800/50 border border-slate-700 rounded-xl text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-all"
-            />
-          </div>
-          <button
-            id="submit-btn"
-            type="submit"
-            disabled={isLoading || !doi.trim()}
-            className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-xl hover:from-indigo-500 hover:to-purple-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all hover:shadow-lg hover:shadow-indigo-500/20"
+      {/* Main Action Area */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
+        {/* Left Col: Upload */}
+        <section className="lg:col-span-8 animate-fade-up animate-delay-1">
+          <div 
+            className={`glass-card p-12 h-full flex flex-col items-center justify-center text-center border-2 border-dashed transition-all ${
+              dragActive ? 'border-indigo-500 bg-indigo-500/5 scale-[1.01]' : 'border-slate-700/50 hover:border-slate-600'
+            }`}
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
           >
-            {isLoading ? 'Evaluating...' : 'Evaluate'}
-          </button>
-        </form>
-      </section>
-
-      {/* Overview Cards */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 animate-fade-up animate-delay-2">
-        <div className="glass-card p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-green-400" />
-            </div>
-            <span className="text-slate-400 text-sm font-medium">Papers Evaluated</span>
-          </div>
-          <p className="text-3xl font-bold">0</p>
-        </div>
-        <div className="glass-card p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-              <Shield className="w-4 h-4 text-indigo-400" />
-            </div>
-            <span className="text-slate-400 text-sm font-medium">Integrity Checks</span>
-          </div>
-          <p className="text-3xl font-bold">0</p>
-        </div>
-        <div className="glass-card p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center">
-              <AlertTriangle className="w-4 h-4 text-red-400" />
-            </div>
-            <span className="text-slate-400 text-sm font-medium">Retractions Caught</span>
-          </div>
-          <p className="text-3xl font-bold">0</p>
-        </div>
-      </section>
-
-      {/* 9-Dimension Overview */}
-      <section className="glass-card p-8 animate-fade-up animate-delay-3" id="dimensions-overview">
-        <h2 className="text-xl font-semibold mb-6">9-Dimension Scoring Rubric</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {DIMENSION_NAMES.map((name, i) => (
-            <div
-              key={i}
-              className={`p-4 rounded-xl border transition-all hover:scale-[1.02] ${
-                i === 8
-                  ? 'border-red-500/30 bg-red-500/5 hover:border-red-500/50'
-                  : 'border-slate-700/50 bg-slate-800/30 hover:border-indigo-500/30'
-              }`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-mono text-slate-500">D{i + 1}</span>
-                {i === 8 && (
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full">
-                    Integrity Gate
-                  </span>
-                )}
+            {isUploading ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-16 h-16 rounded-full border-4 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                <div>
+                  <h3 className="text-xl font-semibold mb-1">Evaluating Research Document</h3>
+                  <p className="text-slate-400 text-sm">GLM-OCR neural extraction running... (~3 sec for MVP)</p>
+                </div>
               </div>
-              <p className="text-sm font-medium text-slate-300">{name}</p>
-              <div className="score-bar mt-3">
-                <div className="score-bar-fill bg-slate-600" style={{ width: '0%' }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+            ) : (
+              <>
+                <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center mb-6 shadow-xl">
+                  <Upload className="w-8 h-8 text-indigo-400" />
+                </div>
+                <h2 className="text-2xl font-bold mb-3">
+                  Upload PDF to Begin Analysis
+                </h2>
+                <p className="text-slate-400 mb-8 max-w-md">
+                  {persona === 'RESEARCHER' 
+                    ? "Upload your preprint or final draft to evaluate market fit, IP moat, and catch structural flaws before investor review."
+                    : "Upload a dense scientific paper to automatically extract ROI potential, Team Quality, and ESG risks."}
+                </p>
+                <input 
+                  type="file" 
+                  accept=".pdf" 
+                  className="hidden" 
+                  ref={fileInputRef}
+                  onChange={(e) => {
+                    if (e.target.files && e.target.files[0]) handleFileUpload(e.target.files[0]);
+                  }}
+                />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-xl hover:from-indigo-500 hover:to-purple-500 transition-all hover:shadow-lg hover:shadow-indigo-500/20 flex items-center gap-2"
+                >
+                  <FileText className="w-5 h-5" /> Select Local File
+                </button>
+              </>
+            )}
+          </div>
+        </section>
+
+        {/* Right Col: Process Explanation */}
+        <section className="lg:col-span-4 flex flex-col gap-4 animate-fade-up animate-delay-2">
+          <div className="glass-card p-6 border-indigo-500/20 bg-indigo-500/5">
+            <h3 className="font-semibold text-indigo-400 flex items-center gap-2 mb-2">
+              <Zap className="w-4 h-4" /> 60% Automated Extent
+            </h3>
+            <p className="text-sm text-slate-400">
+              The AI layer instantly processes structure, citations (Dimension 2), and runs the Integrity Gate cross-checks (Dimension 9).
+            </p>
+          </div>
+          <div className="glass-card p-6">
+            <h3 className="font-semibold text-slate-300 flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-4 h-4" /> 88% Agency Assisted
+            </h3>
+            <p className="text-sm text-slate-400">
+              Human-in-the-loop completion for Market Size and Defensibility parameters that the AI could not definitively measure.
+            </p>
+          </div>
+          <div className="glass-card p-6">
+            <h3 className="font-semibold text-slate-300 mb-2">100% Expert Audit</h3>
+            <p className="text-sm text-slate-400">
+              Full qualitative synthesis and manual override of any systemic biases or hallucinated signals by MatDAO experts.
+            </p>
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

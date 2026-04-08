@@ -25,6 +25,7 @@ def compute_score(
     origin_snippets: dict[int, str] | None = None,
     weights: dict[int, float] | None = None,
     automated_flags: dict[int, bool] | None = None,
+    confidence_tier: str = "AUTOMATED_60",
 ) -> ScoringResult:
     """Compute the weighted total score with Integrity Gate enforcement.
 
@@ -78,4 +79,5 @@ def compute_score(
         doi=doi,
         dimensions=dimensions,
         integrity_gate_triggered=integrity_gate_triggered,
+        confidence_tier=confidence_tier,
     )

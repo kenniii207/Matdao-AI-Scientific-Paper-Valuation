@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 
 from backend.core.config import settings
 from backend.core.exceptions import MatDAOBaseError
-from backend.api.routes import papers, scoring
+from backend.api.routes import papers, scoring, upload
 
 
 @asynccontextmanager
@@ -44,6 +44,7 @@ async def matdao_exception_handler(request: Request, exc: MatDAOBaseError):
 
 app.include_router(papers.router, prefix="/api/papers", tags=["papers"])
 app.include_router(scoring.router, prefix="/api/scoring", tags=["scoring"])
+app.include_router(upload.router, prefix="/api", tags=["upload"])
 
 
 @app.get("/health")
