@@ -6,15 +6,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.adapters.crossref_adapter import CrossrefAdapter
-from backend.api.adapters.openalex_adapter import OpenAlexAdapter
-from backend.api.adapters.semantic_scholar_adapter import SemanticScholarAdapter
-from backend.api.adapters.serpapi_scholar_adapter import SerpApiScholarAdapter
-from backend.db.models import ResearchPaper, ScoringResultDB
-from backend.db.session import get_session
-from backend.services.scoring.dimension2 import score_dimension2
-from backend.services.scoring.dimension9 import score_dimension9
-from backend.services.scoring.engine import compute_score
+from adapters.crossref_adapter import CrossrefAdapter
+from adapters.openalex_adapter import OpenAlexAdapter
+from adapters.semantic_scholar_adapter import SemanticScholarAdapter
+from adapters.serpapi_scholar_adapter import SerpApiScholarAdapter
+from db.models import ResearchPaper, ScoringResultDB
+from db.session import get_session
+from services.scoring.dimension2 import score_dimension2
+from services.scoring.dimension9 import score_dimension9
+from services.scoring.engine import compute_score
 
 router = APIRouter()
 

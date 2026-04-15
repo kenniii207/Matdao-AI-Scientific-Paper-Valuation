@@ -2,17 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
-  --bg-primary: #0a0e1a;
-  --bg-secondary: #111827;
-  --bg-card: rgba(17, 24, 39, 0.8);
-  --border-subtle: rgba(99, 102, 241, 0.15);
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --accent: #6366f1;
-  --accent-glow: rgba(99, 102, 241, 0.3);
+  --bg-primary: #131313;
+  --bg-secondary: #1c1b1b;
+  --bg-card: rgba(42, 42, 42, 0.8);
+  --border-subtle: rgba(151, 253, 255, 0.15);
+  --text-primary: #e8e8e8;
+  --text-secondary: #b8b8b8;
+  --accent: #97fdff;
+  --accent-glow: rgba(151, 253, 255, 0.25);
   --grade-a: #22c55e;
   --grade-b: #3b82f6;
   --grade-c: #eab308;
@@ -31,15 +31,19 @@ body {
 /* Glassmorphism card */
 .glass-card {
   background: var(--bg-card);
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(14px);
   border: 1px solid var(--border-subtle);
-  border-radius: 16px;
+  border-radius: 6px;
   transition: all 0.3s ease;
 }
 
 .glass-card:hover {
-  border-color: rgba(99, 102, 241, 0.3);
+  border-color: rgba(151, 253, 255, 0.4);
   box-shadow: 0 0 30px var(--accent-glow);
+}
+
+h1, h2, h3, .tech-display {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
 }
 
 /* Grade badges */

@@ -8,18 +8,15 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        matdao: {
-          50: '#f0f4ff',
-          100: '#dbe4ff',
-          200: '#bac8ff',
-          300: '#91a7ff',
-          400: '#748ffc',
-          500: '#5c7cfa',
-          600: '#4c6ef5',
-          700: '#4263eb',
-          800: '#3b5bdb',
-          900: '#364fc7',
-        },
+        surface: '#131313',
+        surface_container_low: '#1C1B1B',
+        surface_container_high: '#2A2A2A',
+        surface_bright: '#3A3939',
+        primary: '#97FDFF',
+        primary_container: '#3FE6E8',
+        on_surface: '#E8E8E8',
+        on_surface_variant: '#B8B8B8',
+        outline_variant: '#4A4A4A',
         integrity: {
           pass: '#40c057',
           fail: '#fa5252',
@@ -27,7 +24,13 @@ module.exports = {
         },
       },
       fontFamily: {
+        display: ['"Space Grotesk"', 'Inter', 'system-ui', 'sans-serif'],
         sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
+      borderRadius: {
+        DEFAULT: '0.25rem',
+        sm: '0.125rem',
+        md: '0.375rem',
       },
     },
   },

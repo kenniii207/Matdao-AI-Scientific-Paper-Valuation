@@ -14,7 +14,7 @@ export default function ProgressStats() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
         const res = await fetch(`${apiUrl}/api/papers/stats/summary`);
         const data = await res.json();
         setStats(data);
@@ -39,7 +39,7 @@ export default function ProgressStats() {
             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
           />
           <path
-            className="text-indigo-500 drop-shadow-[0_0_8px_rgba(99,102,241,0.8)]"
+            className="text-primary drop-shadow-[0_0_8px_rgba(151,253,255,0.8)]"
             strokeDasharray={`${stats.progress_percent}, 100`}
             strokeWidth="3"
             strokeLinecap="round"
@@ -54,7 +54,7 @@ export default function ProgressStats() {
       <div className="flex flex-col gap-2">
         <h3 className="text-2xl font-bold text-white">Analysis Progress</h3>
         <p className="text-slate-400">Total Papers Ingested: <span className="text-white font-medium">{stats.total_papers}</span></p>
-        <p className="text-slate-400">Successfully Scored: <span className="text-indigo-400 font-medium">{stats.total_scored}</span></p>
+        <p className="text-slate-400">Successfully Scored: <span className="text-primary font-medium">{stats.total_scored}</span></p>
       </div>
     </div>
   );

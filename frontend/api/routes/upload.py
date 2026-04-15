@@ -5,10 +5,10 @@ from typing import Dict, Any
 from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.db.session import get_session
-from backend.db.models import ResearchPaper, ExtractionLayer
-from backend.api.adapters.grobid_adapter import GrobidAdapter
-from backend.api.adapters.glm_ocr_adapter import GLMOCRAdapter
+from db.session import get_session
+from db.models import ResearchPaper, ExtractionLayer
+from adapters.grobid_adapter import GrobidAdapter
+from adapters.glm_ocr_adapter import GLMOCRAdapter
 import fitz  # PyMuPDF
 import base64
 
@@ -122,7 +122,7 @@ async def upload_pdf(
     # Update DB records with real data
     layer.status = "completed"
     layer.processed_data = {
-        "grobid_tei": text_data[:1000] + "...", # truncate for DB storage safety in MVP
+        "grobid_tei": text_data[:1000] + "...",
         "glm_ocr": ocr_data,
         "detected_doi": detected_doi,
     }
