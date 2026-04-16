@@ -11,7 +11,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from PIL import Image
 import fitz  # PyMuPDF
-import torch
 
 from backend.db.session import get_session
 from backend.db.models import ResearchPaper, ExtractionLayer

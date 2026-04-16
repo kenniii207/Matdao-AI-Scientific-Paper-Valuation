@@ -37,13 +37,16 @@ class Settings(BaseSettings):
     # API Base URLs (not user-configured — hardcoded per spec)
     openalex_base_url: str = "https://api.openalex.org"
     semantic_scholar_base_url: str = "https://api.semanticscholar.org/graph/v1"
+    crossref_base_url: str = "https://api.crossref.org"
     serpapi_base_url: str = "https://serpapi.com"
     osf_base_url: str = "https://api.osf.io/v2"
     clinical_trials_base_url: str = "https://clinicaltrials.gov/api/v2"
+    crossref_email: str = Field(default="ops@matdao.ai", alias="CROSSREF_EMAIL")
 
     # Rate Limits (requests per second)
     openalex_rate_limit: float = 100.0
     semantic_scholar_rate_limit: float = 100.0
+    crossref_rate_limit: float = 0.8
     serpapi_rate_limit: float = 10.0
     osf_rate_limit: float = 10.0
     clinical_trials_rate_limit: float = 10.0
