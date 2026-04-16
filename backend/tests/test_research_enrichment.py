@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from backend.services import research_enrichment as enrichment
@@ -172,3 +174,28 @@ async def test_apply_local_retrieval_phase2_uses_curated_cache(monkeypatch):
     enriched_second = {"similar_papers": similar_papers, "source_errors": {}}
     await enrichment._apply_local_retrieval_phase2(enriched_second, document_profile)
     assert enriched_second["local_retrieval"]["curated_cache_hit"] is True
+
+
+@pytest.mark.asyncio
+async def test_apply_local_retrieval_phase2_skips_when_model_load_times_out(monkeypatch):
+    similar_papers = {"openalex": [{"title": "Alpha catalyst screening"}]}
+    enriched = {"similar_papers": similar_papers, "source_errors": {}}
+    document_profile = {
+        "title": "Graph catalyst screening",
+        "abstract": "We optimize catalysts with graph methods.",
+        "keywords": ["catalyst"],
+    }
+
+    monkeypatch.setattr(enrichment.settings, "enable_local_prefilter", True)
+    monkeypatch.setattr(enrichment.settings, "enable_local_reranker", False)
+    monkeypatch.setattr(enrichment.settings, "enable_curated_cache", False)
+    monkeypatch.setattr(enrichment.settings, "local_model_load_timeout_seconds", 1)
+
+    async def slow_embedding_model():
+        await asyncio.sleep(1.5)
+        return object()
+
+    monkeypatch.setattr(enrichment, "_get_embedding_model", slow_embedding_model)
+    await enrichment._apply_local_retrieval_phase2(enriched, document_profile)
+    assert "timed out" in enriched["source_errors"]["local_prefilter"]
+    assert enriched["local_retrieval"]["enabled"] is False

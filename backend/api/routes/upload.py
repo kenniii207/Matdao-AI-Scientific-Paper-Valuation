@@ -211,6 +211,42 @@ async def _evaluate_and_score(paper_id: str) -> None:
                     }
 
                 jsonable_enriched_data = coerce_jsonable(enriched_data)
+                quality_signals = (
+                    eval_results.get("_quality_signals", {})
+                    if isinstance(eval_results, dict)
+                    else {}
+                )
+                quality_signals = quality_signals if isinstance(quality_signals, dict) else {}
+                schema_repair_count = int(_safe_float(quality_signals.get("schema_repair_count"), 0.0))
+                llm_hard_failure = bool(quality_signals.get("llm_hard_failure"))
+                unrecoverable_llm_failure = llm_hard_failure or (
+                    bool(eval_results.get("error")) and schema_repair_count >= 25
+                )
+                if unrecoverable_llm_failure:
+                    logger.error(
+                        "Skipping scoring due to LLM hard failure for paper_id=%s error=%s quality=%s",
+                        paper_id,
+                        eval_results.get("error"),
+                        quality_signals,
+                    )
+                    if layer is not None:
+                        merged_stage_timings = {
+                            "pipeline_total_ms": round((time.perf_counter() - pipeline_start) * 1000, 2),
+                            **(jsonable_enriched_data.get("stage_timings_ms", {}) if isinstance(jsonable_enriched_data.get("stage_timings_ms"), dict) else {}),
+                            **(eval_results.get("stage_timings_ms", {}) if isinstance(eval_results.get("stage_timings_ms"), dict) else {}),
+                        }
+                        layer.status = "error"
+                        layer.processed_data = {
+                            "error": "llm_providers_unavailable",
+                            "error_detail": str(eval_results.get("error") or "No structured scores"),
+                            "document_profile": paper_profile,
+                            "eval_results": eval_results,
+                            "enriched_data": jsonable_enriched_data,
+                            "stage_timings_ms": merged_stage_timings,
+                            "pipeline_timed_out": timed_out,
+                        }
+                        await session.commit()
+                    return
 
                 raw_scores: dict[int, float] = {}
                 origin_snippets: dict[int, str] = {}

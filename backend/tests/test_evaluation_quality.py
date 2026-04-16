@@ -1,5 +1,7 @@
 """Tests for evaluation quality signal helpers."""
 
+import pytest
+
 from backend.services import evaluation as evaluation_service
 
 
@@ -92,3 +94,68 @@ def test_validate_and_repair_schema_keeps_high_evidence_without_template_overrid
     assert repaired["_quality_signals"]["insufficient_evidence"] is False
     assert repaired["executive_summary"] == "Tailored summary"
     assert repaired["insight"] == "Tailored insight"
+
+
+def test_has_structured_scores_requires_minimum_dimensions():
+    assert evaluation_service._has_structured_scores({"scores": {"1": {"score": 4.0}}}) is False
+    assert (
+        evaluation_service._has_structured_scores(
+            {
+                "scores": {
+                    str(idx): {"score": 3.0}
+                    for idx in range(1, 7)
+                }
+            }
+        )
+        is True
+    )
+
+
+@pytest.mark.asyncio
+async def test_evaluate_content_falls_back_to_glm_when_gemini_fails(monkeypatch):
+    monkeypatch.setattr(evaluation_service.settings, "gemini_api_key", "test-gemini")
+    monkeypatch.setattr(evaluation_service.settings, "zai_api_key", "test-zai")
+    evaluator = evaluation_service.ScientificEvaluator()
+    evaluator.api_key = "test-zai"
+
+    async def fake_gemini(_prompt: str):
+        return {"error": "gemini_503"}
+
+    async def fake_glm(_prompt: str):
+        return {
+            "scores": {
+                str(idx): {"score": 3.7, "rationale": f"R{idx}", "origin_snippet": f"S{idx}"}
+                for idx in range(1, 10)
+            },
+            "insight": "Fallback analysis ties scorecard outputs to concrete manuscript evidence and metadata.",
+            "executive_summary": "Fallback summary",
+            "warnings": ["Fallback warning"],
+        }
+
+    monkeypatch.setattr(evaluator, "_evaluate_with_gemini", fake_gemini)
+    monkeypatch.setattr(evaluator, "_evaluate_with_glm", fake_glm)
+
+    result = await evaluator.evaluate_content("paper text", {"document_profile": {"title": "T"}})
+    assert result["_quality_signals"]["llm_provider"] == "glm_fallback"
+    assert result["insight"].startswith("Fallback analysis ties scorecard")
+    assert result["_quality_signals"]["provider_errors"]["gemini"] == "gemini_503"
+    assert result["_quality_signals"].get("llm_hard_failure") is not True
+
+
+@pytest.mark.asyncio
+async def test_evaluate_content_marks_hard_failure_when_all_providers_fail(monkeypatch):
+    monkeypatch.setattr(evaluation_service.settings, "gemini_api_key", "test-gemini")
+    monkeypatch.setattr(evaluation_service.settings, "zai_api_key", "test-zai")
+    evaluator = evaluation_service.ScientificEvaluator()
+    evaluator.api_key = "test-zai"
+
+    async def fake_fail(_prompt: str):
+        return {"error": "service_unavailable"}
+
+    monkeypatch.setattr(evaluator, "_evaluate_with_gemini", fake_fail)
+    monkeypatch.setattr(evaluator, "_evaluate_with_glm", fake_fail)
+
+    result = await evaluator.evaluate_content("paper text", {"document_profile": {"title": "T"}})
+    assert result["_quality_signals"]["llm_hard_failure"] is True
+    assert result["_quality_signals"]["llm_provider"] == "none"
+    assert "provider_errors" in result["_quality_signals"]

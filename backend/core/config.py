@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     )
     local_model_device: str = Field(default="cpu", alias="LOCAL_MODEL_DEVICE")
     local_model_cache_dir: str = Field(default="", alias="LOCAL_MODEL_CACHE_DIR")
+    local_model_load_timeout_seconds: int = Field(
+        default=12,
+        alias="LOCAL_MODEL_LOAD_TIMEOUT_SECONDS",
+    )
     enable_external_api_cache: bool = Field(default=True, alias="ENABLE_EXTERNAL_API_CACHE")
     external_api_cache_ttl_seconds: int = Field(default=86400, alias="EXTERNAL_API_CACHE_TTL_SECONDS")
     external_api_cache_max_entries: int = Field(default=500, alias="EXTERNAL_API_CACHE_MAX_ENTRIES")

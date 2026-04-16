@@ -1,5 +1,6 @@
 """Evaluation service for scientific paper analysis using LLMs."""
 
+import asyncio
 import logging
 import json
 import time
@@ -152,6 +153,26 @@ def _build_warnings_from_scores(scores: dict[str, dict[str, Any]]) -> list[str]:
         warnings.append("Governance integrity gate risk detected")
     return warnings or _DEFAULT_WARNINGS[:]
 
+
+def _has_structured_scores(payload: Dict[str, Any] | Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    scores = payload.get("scores")
+    if not isinstance(scores, dict):
+        return False
+    valid_count = 0
+    for dim_id in range(1, 10):
+        item = scores.get(str(dim_id), scores.get(dim_id))
+        if not isinstance(item, dict):
+            continue
+        score = item.get("score")
+        try:
+            float(score)
+            valid_count += 1
+        except Exception:
+            continue
+    return valid_count >= 5
+
 class ScientificEvaluator:
     """Orchestrates scientific due diligence using LLM synthesis."""
 
@@ -162,7 +183,7 @@ class ScientificEvaluator:
     async def _evaluate_with_gemini(self, prompt: str) -> Dict[str, Any]:
         api_key = settings.gemini_api_key
         if not api_key:
-            return {}
+            return {"error": "gemini_not_configured", "provider": "gemini"}
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent"
         payload = {
@@ -175,22 +196,88 @@ class ScientificEvaluator:
         }
 
         async with httpx.AsyncClient(timeout=120.0) as client:
-            try:
-                resp = await client.post(url, headers={"x-goog-api-key": api_key}, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
-                text = (
-                    data.get("candidates", [{}])[0]
-                    .get("content", {})
-                    .get("parts", [{}])[0]
-                    .get("text", "")
-                )
-                if not text:
-                    return {"error": "Gemini returned empty content", "raw": data}
-                return json.loads(text)
-            except Exception as exc:
-                logger.error(f"Gemini evaluation failed: {exc}")
-                return {"error": str(exc)}
+            for attempt in range(1, 3):
+                try:
+                    resp = await client.post(url, headers={"x-goog-api-key": api_key}, json=payload)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    text = (
+                        data.get("candidates", [{}])[0]
+                        .get("content", {})
+                        .get("parts", [{}])[0]
+                        .get("text", "")
+                    )
+                    if not text:
+                        raise ValueError("Gemini returned empty content")
+                    parsed = json.loads(text)
+                    if isinstance(parsed, dict):
+                        parsed["_provider"] = "gemini"
+                    return parsed
+                except httpx.HTTPStatusError as exc:
+                    status = exc.response.status_code if exc.response else None
+                    retryable = status in {429, 500, 502, 503, 504}
+                    if retryable and attempt < 2:
+                        await asyncio.sleep(1.0 * attempt)
+                        continue
+                    logger.error("Gemini evaluation failed with status %s: %s", status, exc)
+                    return {
+                        "error": f"gemini_http_{status}",
+                        "provider": "gemini",
+                        "status_code": status,
+                    }
+                except Exception as exc:
+                    if attempt < 2:
+                        await asyncio.sleep(0.6 * attempt)
+                        continue
+                    logger.error("Gemini evaluation failed: %s", exc)
+                    return {"error": str(exc), "provider": "gemini"}
+
+    async def _evaluate_with_glm(self, prompt: str) -> Dict[str, Any]:
+        if not self.api_key:
+            return {"error": "glm_not_configured", "provider": "glm"}
+
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "glm-4",
+                "messages": [
+                    {"role": "system", "content": "You are a highly critical scientific analyst."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.1,
+                "response_format": {"type": "json_object"}
+            }
+            for attempt in range(1, 3):
+                try:
+                    resp = await client.post(self.api_url, headers=headers, json=payload)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    content = data["choices"][0]["message"]["content"]
+                    parsed = json.loads(content)
+                    if isinstance(parsed, dict):
+                        parsed["_provider"] = "glm"
+                    return parsed
+                except httpx.HTTPStatusError as exc:
+                    status = exc.response.status_code if exc.response else None
+                    retryable = status in {429, 500, 502, 503, 504}
+                    if retryable and attempt < 2:
+                        await asyncio.sleep(0.8 * attempt)
+                        continue
+                    logger.error("GLM evaluation failed with status %s: %s", status, exc)
+                    return {
+                        "error": f"glm_http_{status}",
+                        "provider": "glm",
+                        "status_code": status,
+                    }
+                except Exception as exc:
+                    if attempt < 2:
+                        await asyncio.sleep(0.5 * attempt)
+                        continue
+                    logger.error("GLM evaluation failed: %s", exc)
+                    return {"error": str(exc), "provider": "glm"}
 
     def _validate_and_repair_schema(
         self,
@@ -414,49 +501,48 @@ class ScientificEvaluator:
         }}
         """
         llm_start = time.perf_counter()
-        llm_provider = "gemini" if settings.gemini_api_key else "glm"
+        provider_errors: dict[str, str] = {}
+        selected_result: Dict[str, Any] = {}
+        selected_provider = "none"
 
         if settings.gemini_api_key:
-            eval_result = await self._evaluate_with_gemini(prompt)
-            repaired_result = self._validate_and_repair_schema(eval_result, metadata)
-            llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
-            return self._attach_quality_signals(repaired_result, llm_provider, llm_ms)
+            gemini_result = await self._evaluate_with_gemini(prompt)
+            if _has_structured_scores(gemini_result):
+                selected_result = gemini_result
+                selected_provider = "gemini"
+            else:
+                provider_errors["gemini"] = str(gemini_result.get("error") or "no_structured_scores")
 
-        if not self.api_key:
-            logger.error("No Gemini (GEMINI_API_KEY) or Zhipu/GLM (ZAI_API_KEY) key configured for evaluation.")
-            repaired_result = self._validate_and_repair_schema({}, metadata)
-            llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
-            return self._attach_quality_signals(repaired_result, llm_provider, llm_ms)
+        if not selected_result and self.api_key:
+            glm_result = await self._evaluate_with_glm(prompt)
+            if _has_structured_scores(glm_result):
+                selected_result = glm_result
+                selected_provider = "glm" if not settings.gemini_api_key else "glm_fallback"
+            else:
+                provider_errors["glm"] = str(glm_result.get("error") or "no_structured_scores")
 
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+        if not selected_result:
+            if not settings.gemini_api_key and not self.api_key:
+                logger.error("No Gemini (GEMINI_API_KEY) or Zhipu/GLM (ZAI_API_KEY) key configured for evaluation.")
+                provider_errors["config"] = "llm_keys_missing"
+            selected_result = {
+                "error": "all_llm_providers_failed",
+                "_quality_signals": {
+                    "llm_hard_failure": True,
+                    "provider_errors": provider_errors,
+                },
             }
-            payload = {
-                "model": "glm-4",
-                "messages": [
-                    {"role": "system", "content": "You are a highly critical scientific analyst."},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.1,
-                "response_format": {"type": "json_object"}
-            }
-            
-            try:
-                resp = await client.post(self.api_url, headers=headers, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
-                content = data["choices"][0]["message"]["content"]
-                eval_result = json.loads(content)
-                repaired_result = self._validate_and_repair_schema(eval_result, metadata)
-                llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
-                return self._attach_quality_signals(repaired_result, llm_provider, llm_ms)
-            except Exception as e:
-                logger.error(f"LLM Evaluation failed: {e}")
-                repaired_result = self._validate_and_repair_schema({"error": str(e)}, metadata)
-                llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
-                return self._attach_quality_signals(repaired_result, llm_provider, llm_ms)
+            selected_provider = "none"
+
+        repaired_result = self._validate_and_repair_schema(selected_result, metadata)
+        quality_signals = repaired_result.get("_quality_signals")
+        if not isinstance(quality_signals, dict):
+            quality_signals = {}
+        quality_signals["provider_errors"] = provider_errors
+        repaired_result["_quality_signals"] = quality_signals
+
+        llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
+        return self._attach_quality_signals(repaired_result, selected_provider, llm_ms)
 
     def _attach_quality_signals(
         self,

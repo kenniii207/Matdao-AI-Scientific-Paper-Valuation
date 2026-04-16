@@ -410,7 +410,11 @@ async def _apply_local_retrieval_phase2(
             cache_hit = True
         else:
             cache_hit = False
-            embedding_model = await _get_embedding_model()
+            model_load_timeout = max(1, int(settings.local_model_load_timeout_seconds))
+            embedding_model = await asyncio.wait_for(
+                _get_embedding_model(),
+                timeout=model_load_timeout,
+            )
             prefiltered = await asyncio.to_thread(
                 _rank_candidates_by_embedding,
                 query_text,
@@ -419,7 +423,10 @@ async def _apply_local_retrieval_phase2(
                 max(3, settings.local_prefilter_top_k),
             )
             if settings.enable_local_reranker:
-                reranker = await _get_reranker_model()
+                reranker = await asyncio.wait_for(
+                    _get_reranker_model(),
+                    timeout=model_load_timeout,
+                )
                 prefiltered = await asyncio.to_thread(
                     _rerank_candidates,
                     query_text,
@@ -454,8 +461,20 @@ async def _apply_local_retrieval_phase2(
             "curated_count": len(prefiltered),
             "curated_cache_hit": cache_hit,
         }
+    except asyncio.TimeoutError:
+        enriched["source_errors"]["local_prefilter"] = (
+            f"Skipped: local model load timed out after {max(1, int(settings.local_model_load_timeout_seconds))}s"
+        )
+        enriched["local_retrieval"] = {
+            "enabled": False,
+            "skipped_reason": "model_load_timeout",
+        }
     except Exception as exc:
         enriched["source_errors"]["local_prefilter"] = str(exc)
+        enriched["local_retrieval"] = {
+            "enabled": False,
+            "skipped_reason": str(exc),
+        }
     finally:
         stage_timings["local_prefilter_ms"] = round((time.perf_counter() - stage_start) * 1000, 2)
 
