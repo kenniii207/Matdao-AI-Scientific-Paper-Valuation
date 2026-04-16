@@ -13,6 +13,7 @@ class SemanticScholarAdapter(BaseAdapter):
     """Queries api.semanticscholar.org for citation impact metrics."""
 
     FIELDS = "paperId,title,influentialCitationCount,citationCount,year,venue,authors"
+    SEARCH_FIELDS = "paperId,title,influentialCitationCount,citationCount,year,venue"
 
     def __init__(self):
         headers = {}
@@ -54,7 +55,7 @@ class SemanticScholarAdapter(BaseAdapter):
             params={
                 "query": query,
                 "limit": max(1, min(limit, 10)),
-                "fields": self.FIELDS,
+                "fields": self.SEARCH_FIELDS,
             },
         )
         papers = data.get("data", [])

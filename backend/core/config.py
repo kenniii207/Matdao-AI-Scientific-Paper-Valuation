@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     serpapi_api_key: str = Field(default="", alias="SERPAPI_API_KEY")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    evaluation_text_max_chars: int = Field(default=12000, alias="EVALUATION_TEXT_MAX_CHARS")
+    theme_search_results_per_source: int = Field(default=5, alias="THEME_SEARCH_RESULTS_PER_SOURCE")
+    max_parallel_evaluations: int = Field(default=2, alias="MAX_PARALLEL_EVALUATIONS")
 
     # Service URLs
     database_url: str = Field(

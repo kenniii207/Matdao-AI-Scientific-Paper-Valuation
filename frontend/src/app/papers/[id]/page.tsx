@@ -201,6 +201,20 @@ export default function PaperResultsPage() {
                   </div>
 
                   <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                    <div className="text-white/60 text-sm mb-3">Executive Summary:</div>
+                    <div className="text-white/50 text-sm leading-relaxed">
+                      {data.executive_summary || 'Summary not available for this run.'}
+                    </div>
+                  </div>
+
+                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                    <div className="text-white/60 text-sm mb-3">Investment Recommendation:</div>
+                    <div className="inline-flex items-center rounded-full border border-[#6efcff]/40 bg-[#6efcff]/10 px-3 py-1 text-xs font-semibold text-[#b3feff]">
+                      {data.investment_recommendation || data.grade || 'Pending'}
+                    </div>
+                  </div>
+
+                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
                     <div className="text-white/60 text-sm mb-3">Insight:</div>
                     <div className="text-white/50 text-sm leading-relaxed">
                       {data.insight ||

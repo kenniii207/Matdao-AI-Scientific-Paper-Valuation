@@ -64,16 +64,28 @@ class ScientificEvaluator:
         """
         metadata = coerce_jsonable(enriched_data or {})
         metadata_str = json.dumps(metadata, indent=2)
+        document_profile = metadata.get("document_profile", {}) if isinstance(metadata, dict) else {}
+        abstract = str(document_profile.get("abstract") or "").strip()
+        keywords = document_profile.get("keywords") or []
+        if isinstance(keywords, list):
+            keyword_text = ", ".join(str(k) for k in keywords[:8])
+        else:
+            keyword_text = ""
+        llm_text = (text_content or "")[: max(2000, settings.evaluation_text_max_chars)]
         
         prompt = f"""
         You are the Head of Scientific Due Diligence at MatDAO.
         Your task is to evaluate a scientific paper for investment and research support.
         
         ### DATA SOURCES
-        1. Extracted Paper Text:
-        {text_content[:20000]}
+        1. Parsed Paper Profile:
+        - Abstract: {abstract}
+        - Keywords: {keyword_text}
+
+        2. Extracted Paper Text (truncated for speed):
+        {llm_text}
         
-        2. API Metadata (OpenAlex, Semantic Scholar, Google Scholar theme matches):
+        3. API Metadata (OpenAlex, Semantic Scholar, Google Scholar theme matches):
         {metadata_str}
 
         ### ANALYSIS RULES

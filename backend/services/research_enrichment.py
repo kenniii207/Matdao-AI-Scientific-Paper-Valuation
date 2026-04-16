@@ -10,6 +10,7 @@ from typing import Any
 from backend.api.adapters.openalex_adapter import OpenAlexAdapter
 from backend.api.adapters.semantic_scholar_adapter import SemanticScholarAdapter
 from backend.api.adapters.serpapi_scholar_adapter import SerpApiScholarAdapter
+from backend.core.config import settings
 
 STOPWORDS = {
     "the", "and", "for", "with", "that", "this", "from", "are", "was", "were",
@@ -76,6 +77,10 @@ def build_document_profile(text: str, fallback_title: str | None = None) -> dict
     }
 
 
+async def _with_timeout(coro: Any, timeout_seconds: float = 12.0) -> Any:
+    return await asyncio.wait_for(coro, timeout=timeout_seconds)
+
+
 async def build_external_enrichment(
     doi: str,
     document_profile: dict[str, Any],
@@ -83,7 +88,8 @@ async def build_external_enrichment(
     """Fetch DOI metadata + theme-similar papers from OpenAlex/S2/Scholar."""
     openalex = OpenAlexAdapter()
     semantic = SemanticScholarAdapter()
-    serpapi = SerpApiScholarAdapter()
+    serpapi = SerpApiScholarAdapter() if settings.serpapi_api_key else None
+    per_source_limit = max(3, min(int(settings.theme_search_results_per_source), 10))
 
     query_seed = (document_profile.get("query_seed") or "").strip()
     title = (document_profile.get("title") or "").strip()
@@ -102,8 +108,8 @@ async def build_external_enrichment(
     try:
         if doi and not doi.startswith("10.matdao/"):
             doi_tasks = await asyncio.gather(
-                openalex.get_work(doi=doi),
-                semantic.get_paper(doi=doi),
+                _with_timeout(openalex.get_work(doi=doi), timeout_seconds=12.0),
+                _with_timeout(semantic.get_paper(doi=doi), timeout_seconds=12.0),
                 return_exceptions=True,
             )
             if isinstance(doi_tasks[0], Exception):
@@ -115,22 +121,40 @@ async def build_external_enrichment(
             else:
                 enriched["semantic_scholar"] = doi_tasks[1]
 
-        if queries:
-            theme_tasks = await asyncio.gather(
-                openalex.search_works(queries[0], per_page=5),
-                semantic.search_papers(queries[0], limit=5),
-                serpapi.search_papers(queries[0], limit=5),
-                return_exceptions=True,
-            )
-            sources = ("openalex", "semantic_scholar", "google_scholar")
+        if queries and len(queries[0]) >= 12:
+            theme_coroutines: list[Any] = [
+                _with_timeout(
+                    openalex.search_works(queries[0], per_page=per_source_limit),
+                    timeout_seconds=10.0,
+                ),
+                _with_timeout(
+                    semantic.search_papers(queries[0], limit=per_source_limit),
+                    timeout_seconds=10.0,
+                ),
+            ]
+            sources = ["openalex", "semantic_scholar"]
+            if serpapi is not None:
+                theme_coroutines.append(
+                    _with_timeout(serpapi.search_papers(queries[0], limit=per_source_limit), timeout_seconds=10.0)
+                )
+                sources.append("google_scholar")
+            else:
+                enriched["source_errors"]["google_scholar_theme_search"] = "Skipped: SERPAPI_API_KEY not configured"
+
+            theme_tasks = await asyncio.gather(*theme_coroutines, return_exceptions=True)
             for source_name, payload in zip(sources, theme_tasks):
                 if isinstance(payload, Exception):
                     enriched["source_errors"][f"{source_name}_theme_search"] = str(payload)
                 else:
                     enriched["similar_papers"][source_name] = payload
+        elif not queries:
+            enriched["source_errors"]["theme_search"] = "Skipped: no document query seed available"
+        else:
+            enriched["source_errors"]["theme_search"] = "Skipped: extracted query too short"
     finally:
         await openalex.close()
         await semantic.close()
-        await serpapi.close()
+        if serpapi is not None:
+            await serpapi.close()
 
     return enriched

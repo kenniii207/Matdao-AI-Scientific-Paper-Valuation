@@ -253,6 +253,10 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
         integrity_gate_triggered=bool(row.integrity_gate_triggered),
         eval_results=eval_results,
     )
+    executive_summary = str(eval_results.get("executive_summary") or insight).strip()
+    investment_recommendation = str(
+        eval_results.get("investment_recommendation") or f"Grade {row.grade}"
+    ).strip()
 
     return {
         "paper_id": str(paper.id),
@@ -266,8 +270,8 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
         "insight": insight,
         "investor_fit": investor_fit,
         "warnings": warnings,
-        "executive_summary": eval_results.get("executive_summary", ""),
-        "investment_recommendation": eval_results.get("investment_recommendation", ""),
+        "executive_summary": executive_summary,
+        "investment_recommendation": investment_recommendation,
     }
 
 @router.get("/{doi:path}")

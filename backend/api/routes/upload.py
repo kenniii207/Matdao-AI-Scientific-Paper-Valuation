@@ -26,6 +26,7 @@ router = APIRouter()
 
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
+_EVALUATION_SEMAPHORE = asyncio.Semaphore(max(1, int(settings.max_parallel_evaluations)))
 
 DOI_REGEX = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
 
@@ -51,113 +52,114 @@ async def _evaluate_and_score(paper_id: str) -> None:
         logger.error("Background evaluation got invalid paper_id=%r", paper_id)
         return
 
-    async with async_session_factory() as session:
-        paper = await session.get(ResearchPaper, paper_uuid)
-        if paper is None:
-            logger.error("Background evaluation could not find paper_id=%s", paper_id)
-            return
+    async with _EVALUATION_SEMAPHORE:
+        async with async_session_factory() as session:
+            paper = await session.get(ResearchPaper, paper_uuid)
+            if paper is None:
+                logger.error("Background evaluation could not find paper_id=%s", paper_id)
+                return
 
-        existing_score = await session.scalar(
-            select(ScoringResultDB)
-            .where(ScoringResultDB.paper_id == paper.id)
-            .order_by(ScoringResultDB.version.desc())
-            .limit(1)
-        )
-        if existing_score is not None:
-            return
-
-        layer = await session.scalar(
-            select(ExtractionLayer)
-            .where(ExtractionLayer.paper_id == paper.id)
-            .order_by(ExtractionLayer.created_at.desc())
-            .limit(1)
-        )
-        if layer is not None:
-            layer.status = "processing"
-            await session.commit()
-
-        try:
-            paper_profile = build_document_profile(
-                paper.raw_text or "",
-                fallback_title=paper.title,
+            existing_score = await session.scalar(
+                select(ScoringResultDB)
+                .where(ScoringResultDB.paper_id == paper.id)
+                .order_by(ScoringResultDB.version.desc())
+                .limit(1)
             )
-            enriched_data = await build_external_enrichment(
-                doi=paper.doi or "",
-                document_profile=paper_profile,
+            if existing_score is not None:
+                return
+
+            layer = await session.scalar(
+                select(ExtractionLayer)
+                .where(ExtractionLayer.paper_id == paper.id)
+                .order_by(ExtractionLayer.created_at.desc())
+                .limit(1)
             )
-
-            evaluator = ScientificEvaluator()
-            jsonable_enriched_data = coerce_jsonable(enriched_data)
-            eval_results = await evaluator.evaluate_content(paper.raw_text or "", jsonable_enriched_data)
-
-            raw_scores: dict[int, float] = {}
-            origin_snippets: dict[int, str] = {}
-            if "scores" in eval_results:
-                for dim_id, data in eval_results["scores"].items():
-                    try:
-                        dim_index = int(str(dim_id).strip())
-                    except Exception:
-                        continue
-                    if dim_index < 1 or dim_index > 9:
-                        continue
-                    try:
-                        score = float(data.get("score", 3.0))
-                    except Exception:
-                        score = 3.0
-                    score = max(1.0, min(5.0, score))
-                    raw_scores[dim_index] = score
-                    origin_snippets[dim_index] = json.dumps(
-                        {
-                            "rationale": data.get("rationale"),
-                            "snippet": data.get("origin_snippet"),
-                        }
-                    )
-
-            scoring_result = compute_score(
-                doi=paper.doi or str(paper.id),
-                raw_scores=raw_scores,
-                origin_snippets=origin_snippets,
-                automated_flags={i: True for i in range(1, 10)},
-            )
-
-            latest_version = await session.scalar(
-                select(func.max(ScoringResultDB.version)).where(ScoringResultDB.paper_id == paper.id)
-            )
-            scoring_db = ScoringResultDB(
-                paper_id=paper.id,
-                version=(latest_version or 0) + 1,
-                total_score=scoring_result.total_score,
-                grade=scoring_result.grade.value,
-                integrity_gate_triggered=scoring_result.integrity_gate_triggered,
-                origin_snippets={str(k): v for k, v in origin_snippets.items()},
-                dim1_score=raw_scores.get(1),
-                dim2_score=raw_scores.get(2),
-                dim3_score=raw_scores.get(3),
-                dim4_score=raw_scores.get(4),
-                dim5_score=raw_scores.get(5),
-                dim6_score=raw_scores.get(6),
-                dim7_score=raw_scores.get(7),
-                dim8_score=raw_scores.get(8),
-                dim9_score=raw_scores.get(9),
-                scored_by="llm-eval-v1",
-            )
-            session.add(scoring_db)
-
             if layer is not None:
-                layer.status = "completed"
-                layer.processed_data = {
-                    "text_content": (paper.raw_text or "")[:5000],
-                    "document_profile": paper_profile,
-                    "eval_results": eval_results,
-                    "enriched_data": jsonable_enriched_data,
-                }
-            await session.commit()
-        except Exception as exc:
-            logger.exception("Background evaluation failed for paper %s", paper_id)
-            if layer is not None:
-                layer.status = "error"
-                layer.processed_data = {"error": str(exc)}
+                layer.status = "processing"
                 await session.commit()
+
+            try:
+                paper_profile = build_document_profile(
+                    paper.raw_text or "",
+                    fallback_title=paper.title,
+                )
+                enriched_data = await build_external_enrichment(
+                    doi=paper.doi or "",
+                    document_profile=paper_profile,
+                )
+
+                evaluator = ScientificEvaluator()
+                jsonable_enriched_data = coerce_jsonable(enriched_data)
+                eval_results = await evaluator.evaluate_content(paper.raw_text or "", jsonable_enriched_data)
+
+                raw_scores: dict[int, float] = {}
+                origin_snippets: dict[int, str] = {}
+                if "scores" in eval_results:
+                    for dim_id, data in eval_results["scores"].items():
+                        try:
+                            dim_index = int(str(dim_id).strip())
+                        except Exception:
+                            continue
+                        if dim_index < 1 or dim_index > 9:
+                            continue
+                        try:
+                            score = float(data.get("score", 3.0))
+                        except Exception:
+                            score = 3.0
+                        score = max(1.0, min(5.0, score))
+                        raw_scores[dim_index] = score
+                        origin_snippets[dim_index] = json.dumps(
+                            {
+                                "rationale": data.get("rationale"),
+                                "snippet": data.get("origin_snippet"),
+                            }
+                        )
+
+                scoring_result = compute_score(
+                    doi=paper.doi or str(paper.id),
+                    raw_scores=raw_scores,
+                    origin_snippets=origin_snippets,
+                    automated_flags={i: True for i in range(1, 10)},
+                )
+
+                latest_version = await session.scalar(
+                    select(func.max(ScoringResultDB.version)).where(ScoringResultDB.paper_id == paper.id)
+                )
+                scoring_db = ScoringResultDB(
+                    paper_id=paper.id,
+                    version=(latest_version or 0) + 1,
+                    total_score=scoring_result.total_score,
+                    grade=scoring_result.grade.value,
+                    integrity_gate_triggered=scoring_result.integrity_gate_triggered,
+                    origin_snippets={str(k): v for k, v in origin_snippets.items()},
+                    dim1_score=raw_scores.get(1),
+                    dim2_score=raw_scores.get(2),
+                    dim3_score=raw_scores.get(3),
+                    dim4_score=raw_scores.get(4),
+                    dim5_score=raw_scores.get(5),
+                    dim6_score=raw_scores.get(6),
+                    dim7_score=raw_scores.get(7),
+                    dim8_score=raw_scores.get(8),
+                    dim9_score=raw_scores.get(9),
+                    scored_by="llm-eval-v1",
+                )
+                session.add(scoring_db)
+
+                if layer is not None:
+                    layer.status = "completed"
+                    layer.processed_data = {
+                        "text_content": (paper.raw_text or "")[:5000],
+                        "document_profile": paper_profile,
+                        "eval_results": eval_results,
+                        "enriched_data": jsonable_enriched_data,
+                    }
+                await session.commit()
+            except Exception as exc:
+                logger.exception("Background evaluation failed for paper %s", paper_id)
+                if layer is not None:
+                    layer.status = "error"
+                    layer.processed_data = {"error": str(exc)}
+                    await session.commit()
 
 
 @router.post("/upload")
