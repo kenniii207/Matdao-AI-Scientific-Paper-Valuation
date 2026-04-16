@@ -24,6 +24,18 @@ def test_collect_similarity_candidates_normalizes_sources():
     assert "candidate_text" in candidates[0]
 
 
+def test_collect_similarity_candidates_dedupes_titles():
+    similar_papers = {
+        "openalex": [{"title": "Graph diffusion for catalysts"}],
+        "semantic_scholar": [{"title": "Graph diffusion for catalysts"}],
+    }
+    stats = {}
+    candidates = enrichment._collect_similarity_candidates(similar_papers, stats=stats)
+    assert len(candidates) == 1
+    assert stats["dedupe_removed"] == 1
+    assert stats["dedupe_remaining"] == 1
+
+
 def test_rank_candidates_by_embedding_orders_by_similarity():
     candidates = [
         {"title": "A", "candidate_text": "doc_a"},
@@ -124,3 +136,39 @@ async def test_apply_local_retrieval_phase2_populates_curated(monkeypatch):
     assert "similar_papers_curated" in enriched
     assert enriched["similar_papers_curated"][0]["title"] == "Catalyst optimization via graphs"
     assert enriched["local_retrieval"]["enabled"] is True
+
+
+@pytest.mark.asyncio
+async def test_apply_local_retrieval_phase2_uses_curated_cache(monkeypatch):
+    similar_papers = {"openalex": [{"title": "Alpha catalyst screening"}]}
+    enriched = {"similar_papers": similar_papers, "source_errors": {}}
+    document_profile = {
+        "title": "Graph catalyst screening",
+        "abstract": "We optimize catalysts with graph methods.",
+        "keywords": ["catalyst"],
+    }
+
+    monkeypatch.setattr(enrichment.settings, "enable_local_prefilter", True)
+    monkeypatch.setattr(enrichment.settings, "enable_local_reranker", False)
+    monkeypatch.setattr(enrichment.settings, "enable_curated_cache", True)
+    monkeypatch.setattr(enrichment.settings, "curated_cache_ttl_seconds", 86400)
+    monkeypatch.setattr(enrichment.settings, "curated_cache_max_entries", 200)
+
+    class FakeEmbeddingModel:
+        def encode(self, payload, **kwargs):
+            return [[1.0, 0.0], [0.8, 0.2]]
+
+    async def fake_get_embedding_model():
+        return FakeEmbeddingModel()
+
+    monkeypatch.setattr(enrichment, "_get_embedding_model", fake_get_embedding_model)
+    await enrichment._apply_local_retrieval_phase2(enriched, document_profile)
+    assert enriched["local_retrieval"]["curated_cache_hit"] is False
+
+    async def fail_if_called():
+        raise AssertionError("Embedding model should not be requested on curated cache hit")
+
+    monkeypatch.setattr(enrichment, "_get_embedding_model", fail_if_called)
+    enriched_second = {"similar_papers": similar_papers, "source_errors": {}}
+    await enrichment._apply_local_retrieval_phase2(enriched_second, document_profile)
+    assert enriched_second["local_retrieval"]["curated_cache_hit"] is True

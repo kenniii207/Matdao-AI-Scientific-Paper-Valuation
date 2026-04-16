@@ -2,6 +2,8 @@
 
 import logging
 import json
+import time
+from collections import deque
 import httpx
 from typing import Dict, Any, Optional
 from backend.core.config import settings
@@ -9,6 +11,49 @@ from backend.core.json_utils import coerce_jsonable
 from backend.models.scoring import DIMENSION_NAMES
 
 logger = logging.getLogger(__name__)
+_RECENT_INSIGHTS: deque[str] = deque(maxlen=50)
+_GENERIC_PHRASES = {
+    "strong scientific rigor",
+    "limited commercialization signals",
+    "early-stage deep tech investors",
+    "corporate r&d collaboration",
+    "no go-to-market strategy",
+    "no industry validation",
+}
+
+
+def _normalize_generic_text(text: str) -> str:
+    return " ".join((text or "").lower().strip().split())
+
+
+def _detect_generic_output(result: Dict[str, Any]) -> Dict[str, Any]:
+    insight = str(result.get("insight") or result.get("executive_summary") or "").strip()
+    warnings = result.get("warnings") or []
+    warning_text = " ".join(str(item) for item in warnings) if isinstance(warnings, list) else str(warnings)
+    combined = f"{insight} {warning_text}".strip()
+    normalized = _normalize_generic_text(combined)
+    reasons: list[str] = []
+
+    if not normalized:
+        reasons.append("missing_insight")
+    elif len(normalized) < 40:
+        reasons.append("insight_too_short")
+
+    if any(phrase in normalized for phrase in _GENERIC_PHRASES):
+        reasons.append("contains_generic_phrase")
+
+    repeat_count = 0
+    if normalized:
+        repeat_count = sum(1 for previous in _RECENT_INSIGHTS if previous == normalized)
+        _RECENT_INSIGHTS.append(normalized)
+    if repeat_count >= 2:
+        reasons.append("recent_repeat_pattern")
+
+    return {
+        "generic_output_detected": bool(reasons),
+        "generic_output_reasons": reasons,
+        "recent_repeat_count": repeat_count,
+    }
 
 class ScientificEvaluator:
     """Orchestrates scientific due diligence using LLM synthesis."""
@@ -123,13 +168,18 @@ class ScientificEvaluator:
             "warnings": ["Warning 1", "Warning 2"]
         }}
         """
+        llm_start = time.perf_counter()
+        llm_provider = "gemini" if settings.gemini_api_key else "glm"
 
         if settings.gemini_api_key:
-            return await self._evaluate_with_gemini(prompt)
+            eval_result = await self._evaluate_with_gemini(prompt)
+            llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
+            return self._attach_quality_signals(eval_result, llm_provider, llm_ms)
 
         if not self.api_key:
             logger.error("No Gemini (GEMINI_API_KEY) or Zhipu/GLM (ZAI_API_KEY) key configured for evaluation.")
-            return {}
+            llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
+            return self._attach_quality_signals({}, llm_provider, llm_ms)
 
         async with httpx.AsyncClient(timeout=90.0) as client:
             headers = {
@@ -151,7 +201,31 @@ class ScientificEvaluator:
                 resp.raise_for_status()
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"]
-                return json.loads(content)
+                eval_result = json.loads(content)
+                llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
+                return self._attach_quality_signals(eval_result, llm_provider, llm_ms)
             except Exception as e:
                 logger.error(f"LLM Evaluation failed: {e}")
-                return {"error": str(e)}
+                llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
+                return self._attach_quality_signals({"error": str(e)}, llm_provider, llm_ms)
+
+    def _attach_quality_signals(
+        self,
+        eval_result: Dict[str, Any],
+        provider: str,
+        llm_stage_ms: float,
+    ) -> Dict[str, Any]:
+        result = eval_result if isinstance(eval_result, dict) else {}
+        stage_timings = result.get("stage_timings_ms")
+        if not isinstance(stage_timings, dict):
+            stage_timings = {}
+        stage_timings["llm_stage_ms"] = llm_stage_ms
+        result["stage_timings_ms"] = stage_timings
+
+        quality_signals = result.get("_quality_signals")
+        if not isinstance(quality_signals, dict):
+            quality_signals = {}
+        quality_signals["llm_provider"] = provider
+        quality_signals.update(_detect_generic_output(result))
+        result["_quality_signals"] = quality_signals
+        return result

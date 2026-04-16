@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     )
     local_model_device: str = Field(default="cpu", alias="LOCAL_MODEL_DEVICE")
     local_model_cache_dir: str = Field(default="", alias="LOCAL_MODEL_CACHE_DIR")
+    enable_external_api_cache: bool = Field(default=True, alias="ENABLE_EXTERNAL_API_CACHE")
+    external_api_cache_ttl_seconds: int = Field(default=86400, alias="EXTERNAL_API_CACHE_TTL_SECONDS")
+    external_api_cache_max_entries: int = Field(default=500, alias="EXTERNAL_API_CACHE_MAX_ENTRIES")
+    enable_curated_cache: bool = Field(default=True, alias="ENABLE_CURATED_CACHE")
+    curated_cache_ttl_seconds: int = Field(default=86400, alias="CURATED_CACHE_TTL_SECONDS")
+    curated_cache_max_entries: int = Field(default=500, alias="CURATED_CACHE_MAX_ENTRIES")
+    evaluation_pipeline_timeout_seconds: int = Field(
+        default=120,
+        alias="EVALUATION_PIPELINE_TIMEOUT_SECONDS",
+    )
 
     # Service URLs
     database_url: str = Field(

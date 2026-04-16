@@ -3,6 +3,7 @@ import re
 import logging
 import json
 import asyncio
+import time
 import uuid
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from typing import Dict, Any
@@ -79,18 +80,46 @@ async def _evaluate_and_score(paper_id: str) -> None:
                 await session.commit()
 
             try:
+                pipeline_start = time.perf_counter()
                 paper_profile = build_document_profile(
                     paper.raw_text or "",
                     fallback_title=paper.title,
                 )
-                enriched_data = await build_external_enrichment(
-                    doi=paper.doi or "",
-                    document_profile=paper_profile,
-                )
+                timeout_seconds = max(15, int(settings.evaluation_pipeline_timeout_seconds))
+                timed_out = False
+                try:
+                    async def _run_pipeline() -> tuple[dict[str, Any], dict[str, Any]]:
+                        enriched_payload = await build_external_enrichment(
+                            doi=paper.doi or "",
+                            document_profile=paper_profile,
+                        )
+                        evaluator = ScientificEvaluator()
+                        jsonable_payload = coerce_jsonable(enriched_payload)
+                        eval_payload = await evaluator.evaluate_content(paper.raw_text or "", jsonable_payload)
+                        return enriched_payload, eval_payload
 
-                evaluator = ScientificEvaluator()
+                    enriched_data, eval_results = await asyncio.wait_for(
+                        _run_pipeline(),
+                        timeout=timeout_seconds,
+                    )
+                except asyncio.TimeoutError:
+                    timed_out = True
+                    timeout_ms = round((time.perf_counter() - pipeline_start) * 1000, 2)
+                    enriched_data = {
+                        "document_profile": paper_profile,
+                        "source_errors": {"pipeline_timeout": f"Timed out after {timeout_seconds}s"},
+                        "stage_timings_ms": {"pipeline_timeout_ms": timeout_ms},
+                    }
+                    eval_results = {
+                        "error": "evaluation_timeout",
+                        "_quality_signals": {
+                            "pipeline_timed_out": True,
+                            "timeout_seconds": timeout_seconds,
+                        },
+                        "stage_timings_ms": {"llm_stage_ms": 0.0},
+                    }
+
                 jsonable_enriched_data = coerce_jsonable(enriched_data)
-                eval_results = await evaluator.evaluate_content(paper.raw_text or "", jsonable_enriched_data)
 
                 raw_scores: dict[int, float] = {}
                 origin_snippets: dict[int, str] = {}
@@ -141,17 +170,26 @@ async def _evaluate_and_score(paper_id: str) -> None:
                     dim7_score=raw_scores.get(7),
                     dim8_score=raw_scores.get(8),
                     dim9_score=raw_scores.get(9),
-                    scored_by="llm-eval-v1",
+                    scored_by="llm-timeout-fallback-v1" if timed_out else "llm-eval-v1",
                 )
                 session.add(scoring_db)
 
                 if layer is not None:
+                    enriched_stage = jsonable_enriched_data.get("stage_timings_ms", {})
+                    eval_stage = eval_results.get("stage_timings_ms", {}) if isinstance(eval_results, dict) else {}
+                    merged_stage_timings = {
+                        "pipeline_total_ms": round((time.perf_counter() - pipeline_start) * 1000, 2),
+                        **(enriched_stage if isinstance(enriched_stage, dict) else {}),
+                        **(eval_stage if isinstance(eval_stage, dict) else {}),
+                    }
                     layer.status = "completed"
                     layer.processed_data = {
                         "text_content": (paper.raw_text or "")[:5000],
                         "document_profile": paper_profile,
                         "eval_results": eval_results,
                         "enriched_data": jsonable_enriched_data,
+                        "stage_timings_ms": merged_stage_timings,
+                        "pipeline_timed_out": timed_out,
                     }
                 await session.commit()
             except Exception as exc:
@@ -236,6 +274,7 @@ async def upload_pdf(
     # Extraction Logic: PDF text -> GLM-OCR (API fallback)
     final_text = ""
     extraction_source = "pdf-text"
+    extraction_start = time.perf_counter()
 
     doc: fitz.Document | None = None
     try:
@@ -314,6 +353,9 @@ async def upload_pdf(
     layer.processed_data = {
         "text_content": final_text[:5000],
         "document_profile": parsed_profile,
+        "stage_timings_ms": {
+            "extract_ms": round((time.perf_counter() - extraction_start) * 1000, 2),
+        },
     }
     session.add(paper)
     session.add(layer)

@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import copy
+import hashlib
+import json
+import logging
 import re
+import time
 from collections import Counter
-from typing import Any
+from typing import Any, Callable
 
 from backend.api.adapters.openalex_adapter import OpenAlexAdapter
 from backend.api.adapters.semantic_scholar_adapter import SemanticScholarAdapter
@@ -23,6 +28,15 @@ STOPWORDS = {
 _EMBEDDING_MODEL: Any = None
 _RERANKER_MODEL: Any = None
 _MODEL_LOCK = asyncio.Lock()
+_CACHE_LOCK = asyncio.Lock()
+_EXTERNAL_API_CACHE: dict[str, tuple[float, Any]] = {}
+_CURATED_CACHE: dict[str, tuple[float, Any]] = {}
+_SOURCE_HEALTH_COUNTS: dict[str, dict[str, int]] = {
+    "openalex": {"success": 0, "error": 0, "cache_hit": 0},
+    "semantic_scholar": {"success": 0, "error": 0, "cache_hit": 0},
+    "google_scholar": {"success": 0, "error": 0, "cache_hit": 0},
+}
+logger = logging.getLogger(__name__)
 
 
 def _clean_line(line: str) -> str:
@@ -85,6 +99,106 @@ async def _with_timeout(coro: Any, timeout_seconds: float = 12.0) -> Any:
     return await asyncio.wait_for(coro, timeout=timeout_seconds)
 
 
+def _cache_key(prefix: str, payload: dict[str, Any]) -> str:
+    serialized = json.dumps(payload, sort_keys=True, default=str, ensure_ascii=False)
+    digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+    return f"{prefix}:{digest}"
+
+
+def _normalize_dedupe_key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", text.lower())[:160]
+
+
+async def _cache_get(
+    cache: dict[str, tuple[float, Any]],
+    key: str,
+    ttl_seconds: int,
+    enabled: bool,
+) -> Any | None:
+    if not enabled:
+        return None
+    async with _CACHE_LOCK:
+        record = cache.get(key)
+        if not record:
+            return None
+        expires_at, payload = record
+        if expires_at < time.time():
+            cache.pop(key, None)
+            return None
+        return copy.deepcopy(payload)
+
+
+async def _cache_set(
+    cache: dict[str, tuple[float, Any]],
+    key: str,
+    value: Any,
+    ttl_seconds: int,
+    max_entries: int,
+    enabled: bool,
+) -> None:
+    if not enabled:
+        return
+    async with _CACHE_LOCK:
+        cache[key] = (time.time() + max(1, ttl_seconds), copy.deepcopy(value))
+        if len(cache) > max_entries:
+            expired_keys = [cache_key for cache_key, (expires_at, _) in cache.items() if expires_at < time.time()]
+            for expired_key in expired_keys:
+                cache.pop(expired_key, None)
+        if len(cache) > max_entries:
+            oldest_keys = sorted(cache.items(), key=lambda item: item[1][0])[: len(cache) - max_entries]
+            for oldest_key, _ in oldest_keys:
+                cache.pop(oldest_key, None)
+
+
+async def _record_source_health(source: str, field: str) -> None:
+    if source not in _SOURCE_HEALTH_COUNTS:
+        _SOURCE_HEALTH_COUNTS[source] = {"success": 0, "error": 0, "cache_hit": 0}
+    async with _CACHE_LOCK:
+        _SOURCE_HEALTH_COUNTS[source][field] = _SOURCE_HEALTH_COUNTS[source].get(field, 0) + 1
+
+
+async def _source_health_snapshot() -> dict[str, dict[str, int]]:
+    async with _CACHE_LOCK:
+        return copy.deepcopy(_SOURCE_HEALTH_COUNTS)
+
+
+async def _get_source_payload(
+    *,
+    source: str,
+    cache_key: str,
+    factory: Callable[[], Any],
+    timeout_seconds: float,
+    source_errors: dict[str, str],
+    error_key: str,
+) -> Any | None:
+    cached_payload = await _cache_get(
+        _EXTERNAL_API_CACHE,
+        cache_key,
+        settings.external_api_cache_ttl_seconds,
+        settings.enable_external_api_cache,
+    )
+    if cached_payload is not None:
+        await _record_source_health(source, "cache_hit")
+        await _record_source_health(source, "success")
+        return cached_payload
+    try:
+        payload = await _with_timeout(factory(), timeout_seconds=timeout_seconds)
+        await _cache_set(
+            _EXTERNAL_API_CACHE,
+            cache_key,
+            payload,
+            settings.external_api_cache_ttl_seconds,
+            settings.external_api_cache_max_entries,
+            settings.enable_external_api_cache,
+        )
+        await _record_source_health(source, "success")
+        return payload
+    except Exception as exc:
+        source_errors[error_key] = str(exc)
+        await _record_source_health(source, "error")
+        return None
+
+
 def _candidate_text(candidate: dict[str, Any]) -> str:
     parts = [
         candidate.get("title"),
@@ -97,8 +211,13 @@ def _candidate_text(candidate: dict[str, Any]) -> str:
     return " ".join(cleaned).strip()
 
 
-def _collect_similarity_candidates(similar_papers: dict[str, Any]) -> list[dict[str, Any]]:
+def _collect_similarity_candidates(
+    similar_papers: dict[str, Any],
+    stats: dict[str, int] | None = None,
+) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
+    seen_dedupe_keys: set[str] = set()
+    duplicate_count = 0
     for source, items in (similar_papers or {}).items():
         if not isinstance(items, list):
             continue
@@ -113,8 +232,17 @@ def _collect_similarity_candidates(similar_papers: dict[str, Any]) -> list[dict[
             candidate_text = _candidate_text(candidate)
             if not candidate_text:
                 continue
+            dedupe_key = _normalize_dedupe_key(str(candidate.get("title") or candidate_text))
+            if dedupe_key and dedupe_key in seen_dedupe_keys:
+                duplicate_count += 1
+                continue
+            if dedupe_key:
+                seen_dedupe_keys.add(dedupe_key)
             candidate["candidate_text"] = candidate_text
             candidates.append(candidate)
+    if stats is not None:
+        stats["dedupe_removed"] = duplicate_count
+        stats["dedupe_remaining"] = len(candidates)
     return candidates
 
 
@@ -228,42 +356,95 @@ async def _apply_local_retrieval_phase2(
     enriched: dict[str, Any],
     document_profile: dict[str, Any],
 ) -> None:
+    stage_timings = enriched.setdefault("stage_timings_ms", {})
+    stage_start = time.perf_counter()
     if not settings.enable_local_prefilter:
+        stage_timings["local_prefilter_ms"] = round((time.perf_counter() - stage_start) * 1000, 2)
         return
 
-    candidates = _collect_similarity_candidates(enriched.get("similar_papers", {}))
+    dedupe_stats: dict[str, int] = {}
+    candidates = enriched.get("similar_papers_deduped")
+    if not isinstance(candidates, list):
+        candidates = _collect_similarity_candidates(enriched.get("similar_papers", {}), stats=dedupe_stats)
+    else:
+        dedupe_stats["dedupe_removed"] = int(enriched.get("retrieval_quality", {}).get("dedupe_removed", 0))
+        dedupe_stats["dedupe_remaining"] = len(candidates)
+
     if not candidates:
         enriched["source_errors"]["local_prefilter"] = "Skipped: no candidates from external sources"
+        stage_timings["local_prefilter_ms"] = round((time.perf_counter() - stage_start) * 1000, 2)
         return
 
     query_text = _build_query_text(document_profile)
     if len(query_text) < 12:
         enriched["source_errors"]["local_prefilter"] = "Skipped: query text too short"
+        stage_timings["local_prefilter_ms"] = round((time.perf_counter() - stage_start) * 1000, 2)
         return
 
     try:
-        embedding_model = await _get_embedding_model()
-        prefiltered = await asyncio.to_thread(
-            _rank_candidates_by_embedding,
-            query_text,
-            candidates,
-            embedding_model,
-            max(3, settings.local_prefilter_top_k),
+        curated_cache_key = _cache_key(
+            "curated_topk",
+            {
+                "query": query_text,
+                "top_k": max(3, settings.local_prefilter_top_k),
+                "reranker": settings.enable_local_reranker,
+                "candidates": [
+                    {
+                        "source": candidate.get("source"),
+                        "title": candidate.get("title"),
+                        "result_id": candidate.get("result_id"),
+                        "paper_id": candidate.get("paper_id"),
+                    }
+                    for candidate in candidates
+                ],
+            },
         )
-        if settings.enable_local_reranker:
-            reranker = await _get_reranker_model()
+        cached_prefiltered = await _cache_get(
+            _CURATED_CACHE,
+            curated_cache_key,
+            settings.curated_cache_ttl_seconds,
+            settings.enable_curated_cache,
+        )
+        if cached_prefiltered is not None:
+            prefiltered = cached_prefiltered
+            cache_hit = True
+        else:
+            cache_hit = False
+            embedding_model = await _get_embedding_model()
             prefiltered = await asyncio.to_thread(
-                _rerank_candidates,
+                _rank_candidates_by_embedding,
                 query_text,
+                candidates,
+                embedding_model,
+                max(3, settings.local_prefilter_top_k),
+            )
+            if settings.enable_local_reranker:
+                reranker = await _get_reranker_model()
+                prefiltered = await asyncio.to_thread(
+                    _rerank_candidates,
+                    query_text,
+                    prefiltered,
+                    reranker,
+                    10,
+                )
+            await _cache_set(
+                _CURATED_CACHE,
+                curated_cache_key,
                 prefiltered,
-                reranker,
-                10,
+                settings.curated_cache_ttl_seconds,
+                settings.curated_cache_max_entries,
+                settings.enable_curated_cache,
             )
 
         for rank, item in enumerate(prefiltered, start=1):
             item["retrieval_rank"] = rank
 
         enriched["similar_papers_curated"] = prefiltered
+        enriched["retrieval_quality"] = {
+            **enriched.get("retrieval_quality", {}),
+            **dedupe_stats,
+            "curated_cache_hit": cache_hit,
+        }
         enriched["local_retrieval"] = {
             "enabled": True,
             "embedding_model": settings.local_embedding_model,
@@ -271,9 +452,12 @@ async def _apply_local_retrieval_phase2(
             "prefilter_top_k": settings.local_prefilter_top_k,
             "candidate_count": len(candidates),
             "curated_count": len(prefiltered),
+            "curated_cache_hit": cache_hit,
         }
     except Exception as exc:
         enriched["source_errors"]["local_prefilter"] = str(exc)
+    finally:
+        stage_timings["local_prefilter_ms"] = round((time.perf_counter() - stage_start) * 1000, 2)
 
 
 async def build_external_enrichment(
@@ -281,6 +465,7 @@ async def build_external_enrichment(
     document_profile: dict[str, Any],
 ) -> dict[str, Any]:
     """Fetch DOI metadata + theme-similar papers from OpenAlex/S2/Scholar."""
+    total_start = time.perf_counter()
     openalex = OpenAlexAdapter()
     semantic = SemanticScholarAdapter()
     serpapi = SerpApiScholarAdapter() if settings.serpapi_api_key else None
@@ -298,60 +483,121 @@ async def build_external_enrichment(
         "document_profile": document_profile,
         "similar_papers": {},
         "source_errors": {},
+        "stage_timings_ms": {},
     }
+    stage_timings = enriched["stage_timings_ms"]
 
     try:
+        doi_lookup_start = time.perf_counter()
         if doi and not doi.startswith("10.matdao/"):
             doi_tasks = await asyncio.gather(
-                _with_timeout(openalex.get_work(doi=doi), timeout_seconds=12.0),
-                _with_timeout(semantic.get_paper(doi=doi), timeout_seconds=12.0),
-                return_exceptions=True,
-            )
-            if isinstance(doi_tasks[0], Exception):
-                enriched["source_errors"]["openalex_doi"] = str(doi_tasks[0])
-            else:
-                enriched["openalex"] = doi_tasks[0]
-            if isinstance(doi_tasks[1], Exception):
-                enriched["source_errors"]["semantic_scholar_doi"] = str(doi_tasks[1])
-            else:
-                enriched["semantic_scholar"] = doi_tasks[1]
-
-        if queries and len(queries[0]) >= 12:
-            theme_coroutines: list[Any] = [
-                _with_timeout(
-                    openalex.search_works(queries[0], per_page=per_source_limit),
-                    timeout_seconds=10.0,
+                _get_source_payload(
+                    source="openalex",
+                    cache_key=_cache_key("openalex_doi", {"doi": doi}),
+                    factory=lambda: openalex.get_work(doi=doi),
+                    timeout_seconds=12.0,
+                    source_errors=enriched["source_errors"],
+                    error_key="openalex_doi",
                 ),
-                _with_timeout(
-                    semantic.search_papers(queries[0], limit=per_source_limit),
-                    timeout_seconds=10.0,
+                _get_source_payload(
+                    source="semantic_scholar",
+                    cache_key=_cache_key("semantic_scholar_doi", {"doi": doi}),
+                    factory=lambda: semantic.get_paper(doi=doi),
+                    timeout_seconds=12.0,
+                    source_errors=enriched["source_errors"],
+                    error_key="semantic_scholar_doi",
+                ),
+            )
+            if doi_tasks[0] is not None:
+                enriched["openalex"] = doi_tasks[0]
+            if doi_tasks[1] is not None:
+                enriched["semantic_scholar"] = doi_tasks[1]
+        stage_timings["doi_lookup_ms"] = round((time.perf_counter() - doi_lookup_start) * 1000, 2)
+
+        theme_search_start = time.perf_counter()
+        if queries and len(queries[0]) >= 12:
+            theme_coroutines: list[tuple[str, Any]] = [
+                (
+                    "openalex",
+                    _get_source_payload(
+                        source="openalex",
+                        cache_key=_cache_key(
+                            "openalex_theme",
+                            {"query": queries[0], "limit": per_source_limit},
+                        ),
+                        factory=lambda: openalex.search_works(queries[0], per_page=per_source_limit),
+                        timeout_seconds=10.0,
+                        source_errors=enriched["source_errors"],
+                        error_key="openalex_theme_search",
+                    ),
+                ),
+                (
+                    "semantic_scholar",
+                    _get_source_payload(
+                        source="semantic_scholar",
+                        cache_key=_cache_key(
+                            "semantic_scholar_theme",
+                            {"query": queries[0], "limit": per_source_limit},
+                        ),
+                        factory=lambda: semantic.search_papers(queries[0], limit=per_source_limit),
+                        timeout_seconds=10.0,
+                        source_errors=enriched["source_errors"],
+                        error_key="semantic_scholar_theme_search",
+                    ),
                 ),
             ]
-            sources = ["openalex", "semantic_scholar"]
             if serpapi is not None:
                 theme_coroutines.append(
-                    _with_timeout(serpapi.search_papers(queries[0], limit=per_source_limit), timeout_seconds=10.0)
+                    (
+                        "google_scholar",
+                        _get_source_payload(
+                            source="google_scholar",
+                            cache_key=_cache_key(
+                                "google_scholar_theme",
+                                {"query": queries[0], "limit": per_source_limit},
+                            ),
+                            factory=lambda: serpapi.search_papers(queries[0], limit=per_source_limit),
+                            timeout_seconds=10.0,
+                            source_errors=enriched["source_errors"],
+                            error_key="google_scholar_theme_search",
+                        ),
+                    )
                 )
-                sources.append("google_scholar")
             else:
                 enriched["source_errors"]["google_scholar_theme_search"] = "Skipped: SERPAPI_API_KEY not configured"
 
-            theme_tasks = await asyncio.gather(*theme_coroutines, return_exceptions=True)
-            for source_name, payload in zip(sources, theme_tasks):
-                if isinstance(payload, Exception):
-                    enriched["source_errors"][f"{source_name}_theme_search"] = str(payload)
-                else:
+            theme_tasks = await asyncio.gather(*(coroutine for _, coroutine in theme_coroutines))
+            for (source_name, _), payload in zip(theme_coroutines, theme_tasks):
+                if payload is not None:
                     enriched["similar_papers"][source_name] = payload
         elif not queries:
             enriched["source_errors"]["theme_search"] = "Skipped: no document query seed available"
         else:
             enriched["source_errors"]["theme_search"] = "Skipped: extracted query too short"
+        stage_timings["theme_search_ms"] = round((time.perf_counter() - theme_search_start) * 1000, 2)
+
+        dedupe_stats: dict[str, int] = {}
+        deduped_candidates = _collect_similarity_candidates(
+            enriched.get("similar_papers", {}),
+            stats=dedupe_stats,
+        )
+        enriched["similar_papers_deduped"] = deduped_candidates
+        enriched["retrieval_quality"] = dedupe_stats
 
         await _apply_local_retrieval_phase2(enriched, document_profile)
+        enriched["source_health"] = await _source_health_snapshot()
     finally:
         await openalex.close()
         await semantic.close()
         if serpapi is not None:
             await serpapi.close()
+
+    stage_timings["build_external_enrichment_ms"] = round((time.perf_counter() - total_start) * 1000, 2)
+    logger.info(
+        "Enrichment completed doi=%s timings_ms=%s source_errors=%s",
+        doi,
+        stage_timings,
+        list((enriched.get("source_errors") or {}).keys()),
+    )
 
     return enriched
