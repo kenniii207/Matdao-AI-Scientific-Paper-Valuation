@@ -5,7 +5,7 @@ import json
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from typing import Dict, Any
 from pathlib import Path
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 import fitz  # PyMuPDF
 
@@ -59,24 +59,39 @@ async def upload_pdf(
         select(ResearchPaper).where(ResearchPaper.matdao_id == file_hash)
     )
     if existing_paper:
-        return {
-            "status": "success",
-            "mock_doi": existing_paper.doi,
-            "filename": file.filename,
-            "message": "File already exists. Reusing data.",
-            "paper_id": str(existing_paper.id),
-            "deduplicated": True,
-        }
+        from backend.db.models import ScoringResultDB
 
-    # Create record
-    paper = ResearchPaper(
-        matdao_id=file_hash,
-        doi=mock_doi,
-        title=file.filename,
-    )
-    session.add(paper)
-    await session.commit()
-    await session.refresh(paper)
+        existing_score = await session.scalar(
+            select(ScoringResultDB)
+            .where(ScoringResultDB.paper_id == existing_paper.id)
+            .order_by(ScoringResultDB.version.desc())
+            .limit(1)
+        )
+        if existing_score is not None:
+            return {
+                "status": "success",
+                "doi": existing_paper.doi,
+                "filename": file.filename,
+                "score": existing_score.total_score,
+                "grade": existing_score.grade,
+                "eval_summary": None,
+                "paper_id": str(existing_paper.id),
+                "deduplicated": True,
+                "message": "File already exists. Reusing latest scoring result.",
+            }
+        # Paper exists but no scoring record (previous run failed or still processing).
+        # Continue pipeline to generate scoring instead of returning a false-success.
+        paper = existing_paper
+    else:
+        # Create record
+        paper = ResearchPaper(
+            matdao_id=file_hash,
+            doi=mock_doi,
+            title=file.filename,
+        )
+        session.add(paper)
+        await session.commit()
+        await session.refresh(paper)
 
     layer = ExtractionLayer(
         paper_id=paper.id,
@@ -211,9 +226,13 @@ async def upload_pdf(
         automated_flags={i: True for i in range(1, 10)}
     )
 
+    latest_version = await session.scalar(
+        select(func.max(ScoringResultDB.version)).where(ScoringResultDB.paper_id == paper.id)
+    )
+
     scoring_db = ScoringResultDB(
         paper_id=paper.id,
-        version=1,
+        version=(latest_version or 0) + 1,
         total_score=scoring_result.total_score,
         grade=scoring_result.grade.value,
         integrity_gate_triggered=scoring_result.integrity_gate_triggered,
