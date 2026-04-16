@@ -17,7 +17,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: basic            # 1 GB RAM, 0.5 CPU — fits alongside Grobid
+    plan: starter          # 512 MB RAM, 0.1 CPU (Note: Use 'standard' for 2 GB / 1 CPU if needed)
     region: singapore      # Adjust to your nearest region
     branch: main
     healthCheckPath: /health
@@ -53,7 +53,7 @@ services:
     runtime: image
     image:
       url: docker.io/grobid/grobid:0.9.0-crf   # ~478 MB, CPU-only, CRF extractor
-    plan: basic             # 1 GB RAM — stays within budget for CRF-only image
+    plan: starter             # 512 MB RAM (Standard is recommended for 2 GB if starter is too tight)
     region: singapore       # Must match backend region for low-latency internal comms
     disk:
       name: grobid-data
