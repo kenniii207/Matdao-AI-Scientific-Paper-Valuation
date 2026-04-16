@@ -88,15 +88,15 @@ export default function SubmitClient() {
     <div className="min-h-screen flex flex-col bg-black">
       <AppHeader />
 
-      <main className="flex-grow flex items-center justify-center px-6 py-16">
+      <main className="flex-grow flex items-center justify-center px-5 sm:px-6 py-10 md:py-16">
         <div className="w-full max-w-4xl text-center">
           <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-white/85 mb-2">
             {headline}
           </h1>
-          <p className="text-white/35 text-base md:text-lg mb-10">{helper}</p>
+          <p className="text-white/35 text-sm md:text-lg mb-8 md:mb-10">{helper}</p>
 
           <div
-            className={`mx-auto w-full max-w-3xl rounded-2xl border px-6 md:px-10 py-12 transition-colors ${
+            className={`interactive-lift mx-auto w-full max-w-3xl rounded-2xl border px-5 sm:px-6 md:px-10 py-9 md:py-12 transition-colors ${
               uploadState === 'uploading'
                 ? 'border-[#6efcff]/40 bg-[#6efcff]/5'
                 : 'border-white/15 bg-black/30'
@@ -114,6 +114,9 @@ export default function SubmitClient() {
               </div>
 
               <div className="text-sm text-white/45 mb-6">Drag &amp; Drop your paper here</div>
+              <div className="text-xs text-white/30 mb-6">
+                Best results with text-based PDF, under 30MB.
+              </div>
 
               <div className="w-full flex items-center gap-4 mb-7">
                 <div className="h-px bg-white/10 flex-1" />
@@ -136,16 +139,16 @@ export default function SubmitClient() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="rounded-full border border-white/20 bg-white/5 px-8 py-2 text-sm font-medium text-white/70 hover:bg-white/10 transition-colors disabled:opacity-50"
+                className="focus-glow cta-premium rounded-full border border-white/20 bg-white/5 px-8 py-2.5 text-sm font-medium text-white/70 hover:bg-white/10 disabled:opacity-50"
                 disabled={uploadState === 'uploading'}
               >
                 {uploadState === 'uploading' ? 'Uploading…' : 'Upload file'}
               </button>
 
-              <div className="mt-8 flex items-center justify-center gap-6 text-xs text-white/35">
+              <div className="mt-8 flex items-center justify-center gap-4 sm:gap-6 text-xs text-white/35">
                 <button
                   type="button"
-                  className="hover:text-white/60 transition-colors"
+                  className="focus-glow rounded-md px-2 py-1 hover:text-white/60 transition-colors"
                   onClick={() => setMessage('DOI flow not wired yet — upload PDF for now.')}
                 >
                   Paste DOI
@@ -153,7 +156,7 @@ export default function SubmitClient() {
                 <div className="h-4 w-px bg-white/10" />
                 <button
                   type="button"
-                  className="hover:text-white/60 transition-colors"
+                  className="focus-glow rounded-md px-2 py-1 hover:text-white/60 transition-colors"
                   onClick={() => setMessage('Link flow not wired yet — upload PDF for now.')}
                 >
                   Paste Link
@@ -162,10 +165,10 @@ export default function SubmitClient() {
             </div>
           </div>
 
-          <div className="mt-10 flex flex-col items-center gap-4">
+          <div className="mt-8 md:mt-10 flex flex-col items-center gap-4">
             <button
               type="button"
-              className={`rounded-full px-12 py-4 text-sm font-semibold transition-colors ${
+              className={`focus-glow cta-premium rounded-full px-9 sm:px-12 py-4 text-sm font-semibold ${
                 primaryIntent
                   ? 'border border-[#6efcff]/45 bg-[#6efcff]/15 text-[#d1feff] shadow-[0_0_20px_rgba(110,252,255,0.24)] hover:bg-[#6efcff]/25'
                   : 'border border-white/20 bg-white/5 text-white/80 hover:bg-white/10'

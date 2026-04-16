@@ -151,9 +151,9 @@ export default function PaperResultsPage() {
     <div className="min-h-screen flex flex-col">
       <AppHeader />
 
-      <main className="flex-grow lg:ml-0 p-6 md:p-8 pt-6 max-w-7xl mx-auto w-full">
+      <main className="flex-grow lg:ml-0 p-4 sm:p-6 md:p-8 pt-5 md:pt-6 max-w-7xl mx-auto w-full">
         {loading ? (
-          <section className="min-h-[70vh] flex items-center justify-center px-6">
+          <section className="min-h-[70vh] flex items-center justify-center px-3 sm:px-6">
             <div className="w-full max-w-3xl text-center">
               <h1 className="font-headline text-4xl md:text-5xl font-extrabold text-white/80 tracking-tight mb-3">
                 Analyzing your research
@@ -162,7 +162,7 @@ export default function PaperResultsPage() {
                 Running extraction, enrichment, and scoring pipeline.
               </p>
 
-              <div className="w-full max-w-3xl mx-auto h-5 rounded-full border border-white/15 bg-white/5 overflow-hidden">
+              <div className="progress-shimmer w-full max-w-3xl mx-auto h-5 rounded-full border border-white/15 bg-white/5 overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-1000 bg-gradient-to-r from-[#57f3ff] via-[#9ff9ff] to-white shadow-[0_0_20px_rgba(87,243,255,0.45)]"
                   style={{ width: `${progressPercent}%` }}
@@ -176,7 +176,7 @@ export default function PaperResultsPage() {
                 Estimated time remaining: {formatDuration(etaSeconds)}
               </div>
 
-              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-3 max-w-3xl mx-auto">
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-2.5 md:gap-3 max-w-3xl mx-auto">
                 {['Extracting document', 'Matching related work', 'Scoring dimensions'].map((stage, index) => {
                   const isActive = index === stageIndex;
                   const isDone = index < stageIndex;
@@ -199,7 +199,7 @@ export default function PaperResultsPage() {
 
               <div className="mt-10">
                 <button
-                  className="rounded-full border border-white/20 bg-white/5 px-10 py-3 text-sm font-semibold text-white/60 cursor-not-allowed"
+                  className="rounded-full border border-white/20 bg-white/5 px-8 sm:px-10 py-3 text-sm font-semibold text-white/60 cursor-not-allowed"
                   disabled
                 >
                   Preparing your result
@@ -235,7 +235,7 @@ export default function PaperResultsPage() {
             <div className="bg-black/70 backdrop-blur-sm px-6 md:px-10 py-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-5 space-y-6">
-                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-1">Score:</div>
                     <div className="text-white/90 font-headline font-extrabold text-5xl">
                       {score} <span className="text-white/40 text-2xl">/ 100</span>
@@ -245,21 +245,21 @@ export default function PaperResultsPage() {
                     </div>
                   </div>
 
-                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-3">Executive Summary:</div>
                     <div className="text-white/50 text-sm leading-relaxed">
                       {data.executive_summary || 'Summary not available for this run.'}
                     </div>
                   </div>
 
-                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-3">Investment Recommendation:</div>
                     <div className="inline-flex items-center rounded-full border border-[#6efcff]/40 bg-[#6efcff]/10 px-3 py-1 text-xs font-semibold text-[#b3feff]">
                       {data.investment_recommendation || data.grade || 'Pending'}
                     </div>
                   </div>
 
-                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-3">Insight:</div>
                     <div className="text-white/50 text-sm leading-relaxed">
                       {data.insight ||
@@ -269,7 +269,7 @@ export default function PaperResultsPage() {
                     </div>
                   </div>
 
-                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-3">Investor Fit:</div>
                     <ul className="space-y-2 text-white/60 text-sm">
                       {(data.investor_fit?.length
@@ -284,7 +284,7 @@ export default function PaperResultsPage() {
                     </ul>
                   </div>
 
-                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-3">Warnings:</div>
                     <ul className="space-y-2 text-white/60 text-sm">
                       {((data.warnings?.length
@@ -303,14 +303,14 @@ export default function PaperResultsPage() {
                 </div>
 
                 <div className="lg:col-span-7">
-                  <div className="border border-white/10 bg-black/25 rounded-xl p-6">
+                  <div className="interactive-lift border border-white/10 bg-black/25 rounded-xl p-5 md:p-6">
                     <div className="space-y-5">
                       {dims.map((d) => (
                         <div key={d.dimension_id} className="grid grid-cols-12 gap-3 items-center">
-                          <div className="col-span-5 text-white/55 text-sm">
+                          <div className="col-span-6 sm:col-span-5 text-white/55 text-sm">
                             {d.dimension_name}
                           </div>
-                          <div className="col-span-6 h-2 rounded-full bg-white/10 overflow-hidden">
+                          <div className="col-span-5 sm:col-span-6 h-2 rounded-full bg-white/10 overflow-hidden">
                             <div
                               className="h-full bg-gradient-to-r from-[#6efcff] to-[#00dce5] shadow-[0_0_10px_rgba(110,252,255,0.35)]"
                               style={{ width: `${d.percent}%` }}
@@ -323,13 +323,13 @@ export default function PaperResultsPage() {
                       ))}
                     </div>
 
-                    <div className="mt-10 flex items-center justify-between gap-6">
+                    <div className="mt-8 md:mt-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-6">
                       <div className="text-white/35 text-sm">
                         We need more information to improve accuracy
                       </div>
                       <Link
                         href="/upsell"
-                        className="inline-flex items-center gap-2 rounded-xl border border-[#6efcff]/30 bg-[#6efcff]/10 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-[#6efcff]/15 transition-colors"
+                        className="focus-glow cta-premium inline-flex items-center justify-center gap-2 rounded-xl border border-[#6efcff]/30 bg-[#6efcff]/10 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-[#6efcff]/15"
                       >
                         Improve Accuracy <span aria-hidden>→</span>
                       </Link>

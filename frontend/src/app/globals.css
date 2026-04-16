@@ -128,3 +128,53 @@ h1, h2, h3, .tech-display, .headline-font {
 .animate-delay-1 { animation-delay: 0.1s; }
 .animate-delay-2 { animation-delay: 0.2s; }
 .animate-delay-3 { animation-delay: 0.3s; }
+
+.interactive-lift {
+  transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease, background-color 0.28s ease;
+}
+
+.interactive-lift:hover {
+  transform: translateY(-3px);
+}
+
+.interactive-lift:active {
+  transform: translateY(-1px) scale(0.995);
+}
+
+.focus-glow:focus-visible {
+  outline: 2px solid rgba(110, 252, 255, 0.62);
+  outline-offset: 2px;
+}
+
+.cta-premium {
+  transition: transform 0.24s ease, box-shadow 0.24s ease, background-color 0.24s ease, border-color 0.24s ease;
+}
+
+.cta-premium:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 28px rgba(110, 252, 255, 0.28);
+}
+
+.cta-premium:active {
+  transform: translateY(0) scale(0.99);
+}
+
+@keyframes shimmer-line {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(180%); }
+}
+
+.progress-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-shimmer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 36%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.52), transparent);
+  animation: shimmer-line 1.7s linear infinite;
+}

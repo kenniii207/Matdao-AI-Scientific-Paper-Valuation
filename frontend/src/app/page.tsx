@@ -9,14 +9,14 @@ export default function Home() {
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       <AppHeader />
 
-      <main className="flex-grow flex flex-col items-center justify-center px-6 py-16 relative bg-black">
+      <main className="flex-grow flex flex-col items-center justify-center px-5 sm:px-6 py-12 md:py-16 relative bg-black">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-b from-black via-black to-black" />
           <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[760px] h-[760px] bg-white/5 rounded-full blur-[140px]" />
         </div>
 
         <div className="w-full max-w-6xl z-10">
-          <div className="text-center mb-14">
+          <div className="text-center mb-10 md:mb-14">
             <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-on-surface mb-3">
               Let us know your intention
             </h1>
@@ -25,7 +25,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-14 place-items-center">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 mb-12 md:mb-14 place-items-center">
             {[
               {
                 href: '/submit?intent=evaluate',
@@ -53,9 +53,9 @@ export default function Home() {
                   'https://lh3.googleusercontent.com/aida-public/AB6AXuClHus9jfMYaSOO2J4U5HSTgh3aaNUutWCwSaAlsMBGNGN1r_w2fIRuTXj1iDQmcqZaRaa7GIZClUY23gYsrWEN8hZdgAA6nhUseTNiodRI3Mf-nEhb-iWJWf70R-mtO0opsucKQEPkymgGoLrya0-WWKKxT8a0OTmol8P_OkAUGxUKViNE-oqbUqQizIuoh1S8hkBALgIPegyR_zXtOxLOXfeeuIWbhsRo9x1zUfLp2agzAfCblejEuq3NBrdeFnndLB7LCdxIRT8c',
               },
             ].map((c) => (
-              <Link key={c.title} href={c.href} className="group w-[270px] md:w-[290px]">
+              <Link key={c.title} href={c.href} className="group w-full max-w-[320px] md:w-[290px] focus-glow rounded-2xl">
                 <div
-                  className={`relative h-[220px] rounded-2xl overflow-hidden border bg-black/40 transition-all duration-300 ${
+                  className={`interactive-lift relative h-[210px] md:h-[220px] rounded-2xl overflow-hidden border bg-black/40 ${
                     c.featured
                       ? 'border-[#6efcff]/45 shadow-[0_0_28px_rgba(110,252,255,0.2)] group-hover:shadow-[0_0_36px_rgba(110,252,255,0.3)]'
                       : 'border-white/10 group-hover:border-white/20'
@@ -67,14 +67,14 @@ export default function Home() {
                   }}
                 >
                   {c.featured && c.badge ? (
-                    <div className="absolute top-3 left-3 rounded-full border border-[#6efcff]/50 bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#c5feff]">
+                    <div className="absolute top-3 left-3 rounded-full border border-[#6efcff]/50 bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#c5feff] backdrop-blur">
                       {c.badge}
                     </div>
                   ) : null}
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/10" />
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="absolute bottom-0 left-0 right-0 p-5">
-                    <div className={`text-sm font-semibold ${c.featured ? 'text-[#dcfeff]' : 'text-white'}`}>
+                    <div className={`text-sm md:text-[15px] font-semibold ${c.featured ? 'text-[#dcfeff]' : 'text-white'}`}>
                       {c.title}
                     </div>
                     <div className="text-xs text-white/50 mt-1">{c.subtitle}</div>
@@ -87,7 +87,7 @@ export default function Home() {
           <div className="flex flex-col items-center">
             <Link
               href="/submit"
-              className="rounded-full border border-[#6efcff]/45 bg-[#6efcff]/15 px-12 py-4 text-sm font-semibold text-[#d4feff] hover:bg-[#6efcff]/25 transition-colors shadow-[0_0_20px_rgba(110,252,255,0.2)]"
+              className="cta-premium focus-glow rounded-full border border-[#6efcff]/45 bg-[#6efcff]/15 px-10 sm:px-12 py-4 text-sm font-semibold text-[#d4feff] hover:bg-[#6efcff]/25 shadow-[0_0_20px_rgba(110,252,255,0.2)]"
             >
               Start Prototype Evaluation
             </Link>
