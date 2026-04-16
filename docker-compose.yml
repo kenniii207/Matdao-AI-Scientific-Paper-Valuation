@@ -1,12 +1,9 @@
-# Docker Compose for MatDAO Development (Phase 2)
+# Docker Compose for MatDAO Development
 #
-# Pipeline:
-#   - Layer 1 (CPU): Grobid CRF (Lightweight extraction)
-#   - Layer 1 (GPU fallback): Falcon-OCR 300M (Local inference)
-#   - Layer 1 (API fallback): GLM-OCR (Z.ai)
-#
-# NOTE: To use Falcon-OCR locally with GPU, ensure you have NVIDIA Container Toolkit 
-# installed and use 'deploy: resources: reservations: devices: - driver: nvidia'
+# Services:
+# - Grobid (PDF → TEI XML)
+# - Postgres (+pgvector image)
+# - Backend API (calls Grobid; optional GLM-OCR via `ZAI_API_KEY`)
 
 services:
   grobid:
@@ -29,7 +26,7 @@ services:
     environment:
       - POSTGRES_DB=matdao
       - POSTGRES_USER=matdao
-      - POSTGRES_PASSWORD=matdao_secret
+      - POSTGRES_PASSWORD=matdao_password
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -47,26 +44,14 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://matdao:matdao_secret@postgres:5432/matdao
+      - DATABASE_URL=postgresql+asyncpg://matdao:matdao_password@postgres:5432/matdao
       - GROBID_URL=http://grobid:8070
       - ZAI_API_KEY=${ZAI_API_KEY:-}
-      - OPENALEX_API_KEY=${OPENALEX_API_KEY:-}
-      - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
-      - ZHIPU_API_KEY=${ZHIPU_API_KEY:-}
-      - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
     depends_on:
       grobid:
         condition: service_healthy
       postgres:
         condition: service_healthy
-    # Uncomment below if you have a local GPU and want to test Falcon-OCR
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
     restart: unless-stopped
 
 volumes:
