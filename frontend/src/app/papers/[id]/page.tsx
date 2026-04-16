@@ -25,6 +25,13 @@ type ScoringResponse = {
   dimensions: Dimension[];
 };
 
+type ScoringPendingResponse = {
+  paper_id: string;
+  doi?: string;
+  status: string;
+  error?: string;
+};
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -44,9 +51,15 @@ export default function PaperResultsPage() {
     const fetchOnce = async () => {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const res = await fetch(`${apiUrl}/api/scoring/results/${encodeURIComponent(paperId)}`);
-      if (res.status === 404) return null;
+      if (res.status === 404 || res.status === 202) return null;
       if (!res.ok) throw new Error('Backend error while retrieving result.');
-      return (await res.json()) as ScoringResponse;
+
+      const json = (await res.json()) as Partial<ScoringResponse> & Partial<ScoringPendingResponse>;
+      if (json && typeof json === 'object' && 'status' in json && json.status === 'error') {
+        throw new Error(json.error || 'Audit failed.');
+      }
+      if (!json || typeof json.total_score !== 'number' || !Array.isArray(json.dimensions)) return null;
+      return json as ScoringResponse;
     };
 
     const poll = async () => {
