@@ -1,11 +1,19 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import AppFooter from '@/components/AppFooter';
 
 type UploadState = 'idle' | 'uploading' | 'error';
+
+function formatDuration(totalSeconds: number) {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+  return `${seconds}s`;
+}
 
 export default function SubmitClient() {
   const router = useRouter();
@@ -15,6 +23,8 @@ export default function SubmitClient() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [message, setMessage] = useState<string>('');
+  const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
+  const [uploadElapsedSeconds, setUploadElapsedSeconds] = useState(0);
 
   const headline = useMemo(() => {
     if (intent === 'strength') return 'Validate research strength';
@@ -30,8 +40,23 @@ export default function SubmitClient() {
     return 'We will analyze your work using our 4-layer evaluation pipeline.';
   }, [intent]);
 
+  const primaryIntent = intent === 'evaluate' || !intent;
+  const primaryCtaLabel = primaryIntent ? 'Start Prototype Evaluation' : 'Start Analysis';
+
+  useEffect(() => {
+    if (uploadState !== 'uploading' || !uploadStartedAt) {
+      setUploadElapsedSeconds(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setUploadElapsedSeconds(Math.floor((Date.now() - uploadStartedAt) / 1000));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [uploadState, uploadStartedAt]);
+
   const uploadFile = async (file: File) => {
     setUploadState('uploading');
+    setUploadStartedAt(Date.now());
     setMessage('Uploading PDF and extracting text...');
 
     try {
@@ -54,6 +79,7 @@ export default function SubmitClient() {
       router.push(`/papers/${encodeURIComponent(String(paperId))}`);
     } catch (err) {
       setUploadState('error');
+      setUploadStartedAt(null);
       setMessage(err instanceof Error ? err.message : String(err));
     }
   };
@@ -65,12 +91,16 @@ export default function SubmitClient() {
       <main className="flex-grow flex items-center justify-center px-6 py-16">
         <div className="w-full max-w-4xl text-center">
           <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-white/85 mb-2">
-            Upload your research
+            {headline}
           </h1>
           <p className="text-white/35 text-base md:text-lg mb-10">{helper}</p>
 
           <div
-            className="mx-auto w-full max-w-3xl rounded-2xl border border-white/15 bg-black/30 px-6 md:px-10 py-12"
+            className={`mx-auto w-full max-w-3xl rounded-2xl border px-6 md:px-10 py-12 transition-colors ${
+              uploadState === 'uploading'
+                ? 'border-[#6efcff]/40 bg-[#6efcff]/5'
+                : 'border-white/15 bg-black/30'
+            }`}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
@@ -135,16 +165,27 @@ export default function SubmitClient() {
           <div className="mt-10 flex flex-col items-center gap-4">
             <button
               type="button"
-              className="rounded-full border border-white/20 bg-white/5 px-12 py-4 text-sm font-semibold text-white/80 hover:bg-white/10 transition-colors"
+              className={`rounded-full px-12 py-4 text-sm font-semibold transition-colors ${
+                primaryIntent
+                  ? 'border border-[#6efcff]/45 bg-[#6efcff]/15 text-[#d1feff] shadow-[0_0_20px_rgba(110,252,255,0.24)] hover:bg-[#6efcff]/25'
+                  : 'border border-white/20 bg-white/5 text-white/80 hover:bg-white/10'
+              }`}
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadState === 'uploading'}
             >
-              Start Evaluation
+              {primaryCtaLabel}
             </button>
 
             {message ? (
-              <div className={uploadState === 'error' ? 'text-error text-sm' : 'text-white/35 text-sm'}>
-                {message}
+              <div className="space-y-1">
+                <div className={uploadState === 'error' ? 'text-error text-sm' : 'text-white/35 text-sm'}>
+                  {message}
+                </div>
+                {uploadState === 'uploading' ? (
+                  <div className="text-xs text-[#9bf8ff]">
+                    Elapsed: {formatDuration(uploadElapsedSeconds)} · Typical first result in ~45-90s
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div className="text-white/20 text-xs">Paper intent: {intent || 'evaluate'}</div>
