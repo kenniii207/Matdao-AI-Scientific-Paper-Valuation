@@ -3,13 +3,14 @@
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.api.adapters.openalex_adapter import OpenAlexAdapter
 from backend.api.adapters.semantic_scholar_adapter import SemanticScholarAdapter
 from backend.api.adapters.serpapi_scholar_adapter import SerpApiScholarAdapter
-from backend.db.models import ResearchPaper, ScoringResultDB
+from backend.db.models import ExtractionLayer, ResearchPaper, ScoringResultDB
 from backend.db.session import get_session
 from backend.services.scoring.dimension2 import score_dimension2
 from backend.services.scoring.dimension9 import score_dimension9
@@ -120,7 +121,39 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
         .limit(1)
     )
     if row is None:
-        raise HTTPException(status_code=404, detail="No scoring record found for this paper")
+        # Avoid hard 404 during background jobs; return pipeline state instead.
+        layer = await session.scalar(
+            select(ExtractionLayer)
+            .where(ExtractionLayer.paper_id == paper.id)
+            .order_by(ExtractionLayer.created_at.desc())
+            .limit(1)
+        )
+        if layer is None:
+            raise HTTPException(status_code=404, detail="No scoring record found for this paper")
+
+        status = (layer.status or "").lower()
+        processed = layer.processed_data or {}
+        if status in {"queued", "pending", "processing"}:
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "paper_id": str(paper.id),
+                    "doi": paper.doi,
+                    "status": status or "processing",
+                },
+            )
+        if status == "error":
+            return {
+                "paper_id": str(paper.id),
+                "doi": paper.doi,
+                "status": "error",
+                "error": processed.get("error") if isinstance(processed, dict) else str(processed),
+            }
+        return {
+            "paper_id": str(paper.id),
+            "doi": paper.doi,
+            "status": status or "unknown",
+        }
 
     from backend.models.scoring import DIMENSION_NAMES
     

@@ -14,6 +14,7 @@ import fitz  # PyMuPDF
 from backend.db.session import get_session, async_session_factory
 from backend.db.models import ResearchPaper, ExtractionLayer
 from backend.core.config import settings
+from backend.core.json_utils import coerce_jsonable
 from backend.api.adapters.glm_ocr_adapter import GLMOCRAdapter
 
 logger = logging.getLogger(__name__)
@@ -89,7 +90,8 @@ async def _evaluate_and_score(paper_id: str) -> None:
                     await s2.close()
 
             evaluator = ScientificEvaluator()
-            eval_results = await evaluator.evaluate_content(paper.raw_text or "", enriched_data)
+            jsonable_enriched_data = coerce_jsonable(enriched_data)
+            eval_results = await evaluator.evaluate_content(paper.raw_text or "", jsonable_enriched_data)
 
             raw_scores: dict[int, float] = {}
             origin_snippets: dict[int, str] = {}
@@ -138,7 +140,7 @@ async def _evaluate_and_score(paper_id: str) -> None:
                 layer.processed_data = {
                     "text_content": (paper.raw_text or "")[:5000],
                     "eval_results": eval_results,
-                    "enriched_data": enriched_data,
+                    "enriched_data": jsonable_enriched_data,
                 }
             await session.commit()
         except Exception as exc:

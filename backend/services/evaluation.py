@@ -5,6 +5,7 @@ import json
 import httpx
 from typing import Dict, Any, Optional
 from backend.core.config import settings
+from backend.core.json_utils import coerce_jsonable
 from backend.models.scoring import DIMENSION_NAMES
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ class ScientificEvaluator:
             text_content: Extracted text from PDF.
             enriched_data: Metadata from OpenAlex, Semantic Scholar, etc.
         """
-        metadata_str = json.dumps(enriched_data or {}, indent=2)
+        metadata_str = json.dumps(coerce_jsonable(enriched_data or {}), indent=2)
         
         prompt = f"""
         You are the Head of Scientific Due Diligence at MatDAO.
