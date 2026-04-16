@@ -14,8 +14,7 @@ services:
     runtime: docker
     dockerContext: .
     dockerfilePath: Dockerfile
-    plan: standard         # Plan that supports GPU add-ons
-    gpu: true              # Triggers Falcon-OCR 300M local inference
+    plan: starter          # Manual step: Enable GPU (Accelerated Compute) in Dashboard after deploy
     region: singapore      # Recommend matching region for all services
     branch: main
     healthCheckPath: /health
