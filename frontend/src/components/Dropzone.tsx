@@ -25,18 +25,11 @@ export default function Dropzone() {
       });
       const data = await res.json();
       if (res.ok) {
-        setMessage('Upload successful. Running Layer 2 API enrichment...');
-        const evalRes = await fetch(
-          `${apiUrl}/api/scoring/evaluate/${encodeURIComponent(data.mock_doi)}`,
-          { method: 'POST' }
-        );
-        if (!evalRes.ok) {
-          const evalData = await evalRes.json();
-          setMessage(`Uploaded but scoring failed: ${evalData.detail || 'Unknown error'}`);
-        } else {
-          setMessage('Evaluation completed. Opening dashboard...');
-          router.push(`/papers/${encodeURIComponent(data.mock_doi)}`);
+        if (!data.paper_id) {
+          throw new Error('Upload succeeded but server did not return paper_id.');
         }
+        setMessage('Upload + evaluation completed. Opening dashboard...');
+        router.push(`/papers/${encodeURIComponent(String(data.paper_id))}`);
       } else {
         setMessage('Error: ' + data.detail);
       }

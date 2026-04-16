@@ -11,7 +11,7 @@ interface PageProps {
 }
 
 export default function ExpertReviewPage({ params }: PageProps) {
-  const doi = decodeURIComponent(params.id);
+  const paperId = decodeURIComponent(params.id);
   const [submitted, setSubmitted] = useState(false);
 
   const schema = useMemo(
@@ -54,7 +54,10 @@ export default function ExpertReviewPage({ params }: PageProps) {
   return (
     <main className="min-h-screen px-6 py-12 max-w-4xl mx-auto">
       <div className="mb-8 flex items-center justify-between">
-        <Link href={`/papers/${encodeURIComponent(doi)}`} className="inline-flex items-center gap-2 text-slate-400 hover:text-primary transition-colors">
+        <Link
+          href={`/papers/${encodeURIComponent(paperId)}`}
+          className="inline-flex items-center gap-2 text-slate-400 hover:text-primary transition-colors"
+        >
           <ArrowLeft className="w-4 h-4" />
           Back to Dashboard
         </Link>
@@ -63,7 +66,7 @@ export default function ExpertReviewPage({ params }: PageProps) {
 
       <section className="glass-card p-8">
         <h1 className="text-3xl font-semibold mb-2">Expert Review Intake</h1>
-        <p className="text-sm text-slate-400 mb-6">Paper DOI: {doi}</p>
+        <p className="text-sm text-slate-400 mb-6">Paper ID: {paperId}</p>
 
         {submitted ? (
           <div className="rounded-md border border-primary/40 bg-primary/10 px-4 py-3 text-primary">
