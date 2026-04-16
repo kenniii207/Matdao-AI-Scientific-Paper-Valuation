@@ -41,3 +41,27 @@ class SerpApiScholarAdapter(BaseAdapter):
             publication_info_summary=top_result.get("publication_info", {}).get("summary"),
             raw_json=top_result or data,
         )
+
+    async def search_papers(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Return top Google Scholar organic results for theme lookup."""
+        if not query.strip():
+            return []
+        data = await self.fetch(query)
+        organic_results = data.get("organic_results", [])[: max(1, min(limit, 10))]
+        normalized: list[dict[str, Any]] = []
+        for result in organic_results:
+            cited_by = (
+                result.get("inline_links", {})
+                .get("cited_by", {})
+                .get("total")
+            )
+            normalized.append(
+                {
+                    "title": result.get("title"),
+                    "result_id": result.get("result_id"),
+                    "summary": result.get("publication_info", {}).get("summary"),
+                    "cited_by_count": cited_by,
+                    "snippet": result.get("snippet"),
+                }
+            )
+        return normalized

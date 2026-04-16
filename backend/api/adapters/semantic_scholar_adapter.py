@@ -43,3 +43,31 @@ class SemanticScholarAdapter(BaseAdapter):
             authors=data.get("authors", []),
             raw_json=data,
         )
+
+    async def search_papers(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Search Semantic Scholar for semantically similar papers."""
+        if not query.strip():
+            return []
+        data = await self._request(
+            "GET",
+            "/paper/search",
+            params={
+                "query": query,
+                "limit": max(1, min(limit, 10)),
+                "fields": self.FIELDS,
+            },
+        )
+        papers = data.get("data", [])
+        normalized: list[dict[str, Any]] = []
+        for paper in papers:
+            normalized.append(
+                {
+                    "paper_id": paper.get("paperId"),
+                    "title": paper.get("title"),
+                    "citation_count": paper.get("citationCount"),
+                    "influential_citation_count": paper.get("influentialCitationCount"),
+                    "year": paper.get("year"),
+                    "venue": paper.get("venue"),
+                }
+            )
+        return normalized

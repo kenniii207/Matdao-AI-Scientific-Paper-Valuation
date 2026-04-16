@@ -48,3 +48,30 @@ class OpenAlexAdapter(BaseAdapter):
         """Fetch author metrics (h-index, citation count) by OpenAlex author ID."""
         path = f"/authors/{author_id}"
         return await self._request("GET", path, params=self._default_params)
+
+    async def search_works(self, query: str, per_page: int = 5) -> list[dict[str, Any]]:
+        """Search OpenAlex works for theme-level similarity when DOI lookup is unavailable."""
+        if not query.strip():
+            return []
+        params = {
+            **self._default_params,
+            "search": query,
+            "per-page": max(1, min(per_page, 10)),
+            "sort": "relevance_score:desc",
+        }
+        data = await self._request("GET", "/works", params=params)
+        results = data.get("results", [])
+        normalized: list[dict[str, Any]] = []
+        for item in results:
+            normalized.append(
+                {
+                    "id": item.get("id"),
+                    "doi": item.get("doi"),
+                    "title": item.get("title"),
+                    "publication_year": item.get("publication_year"),
+                    "cited_by_count": item.get("cited_by_count"),
+                    "primary_topic": item.get("primary_topic"),
+                    "relevance_score": item.get("relevance_score"),
+                }
+            )
+        return normalized

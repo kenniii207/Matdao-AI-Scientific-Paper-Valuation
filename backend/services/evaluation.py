@@ -62,7 +62,8 @@ class ScientificEvaluator:
             text_content: Extracted text from PDF.
             enriched_data: Metadata from OpenAlex, Semantic Scholar, etc.
         """
-        metadata_str = json.dumps(coerce_jsonable(enriched_data or {}), indent=2)
+        metadata = coerce_jsonable(enriched_data or {})
+        metadata_str = json.dumps(metadata, indent=2)
         
         prompt = f"""
         You are the Head of Scientific Due Diligence at MatDAO.
@@ -72,8 +73,13 @@ class ScientificEvaluator:
         1. Extracted Paper Text:
         {text_content[:20000]}
         
-        2. API Metadata (Citations, Retractions, Peer Review):
+        2. API Metadata (OpenAlex, Semantic Scholar, Google Scholar theme matches):
         {metadata_str}
+
+        ### ANALYSIS RULES
+        - Use document_profile + similar_papers to infer closest research theme before scoring.
+        - If metadata has conflicting signals, explain conflict in rationale.
+        - Do not output generic statements. Tie conclusions to concrete snippets and metadata evidence.
 
         ### EVALUATION CRITERIA (9 Dimensions)
         1. Novelty (0.0-5.0): Originality of the concept/discovery.
@@ -99,7 +105,10 @@ class ScientificEvaluator:
                 "9": {{"score": 5.0, "rationale": "...", "origin_snippet": "..."}}
             }},
             "executive_summary": "...",
-            "investment_recommendation": "Tier A/B/C/Reject"
+            "investment_recommendation": "Tier A/B/C/Reject",
+            "insight": "One concise insight sentence tailored to this paper",
+            "investor_fit": ["Fit 1", "Fit 2"],
+            "warnings": ["Warning 1", "Warning 2"]
         }}
         """
 

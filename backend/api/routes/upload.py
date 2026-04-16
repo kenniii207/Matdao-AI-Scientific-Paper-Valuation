@@ -16,6 +16,10 @@ from backend.db.models import ResearchPaper, ExtractionLayer
 from backend.core.config import settings
 from backend.core.json_utils import coerce_jsonable
 from backend.api.adapters.glm_ocr_adapter import GLMOCRAdapter
+from backend.services.research_enrichment import (
+    build_document_profile,
+    build_external_enrichment,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -73,21 +77,14 @@ async def _evaluate_and_score(paper_id: str) -> None:
             await session.commit()
 
         try:
-            enriched_data: dict[str, Any] = {}
-            if paper.doi and not paper.doi.startswith("10.matdao/"):
-                from backend.api.adapters.openalex_adapter import OpenAlexAdapter
-                from backend.api.adapters.semantic_scholar_adapter import SemanticScholarAdapter
-
-                oa = OpenAlexAdapter()
-                s2 = SemanticScholarAdapter()
-                try:
-                    enriched_data["openalex"] = await oa.get_work(doi=paper.doi)
-                    enriched_data["semantic_scholar"] = await s2.get_paper(doi=paper.doi)
-                except Exception as exc:
-                    logger.warning("Enrichment failed for %s: %s", paper.doi, exc)
-                finally:
-                    await oa.close()
-                    await s2.close()
+            paper_profile = build_document_profile(
+                paper.raw_text or "",
+                fallback_title=paper.title,
+            )
+            enriched_data = await build_external_enrichment(
+                doi=paper.doi or "",
+                document_profile=paper_profile,
+            )
 
             evaluator = ScientificEvaluator()
             jsonable_enriched_data = coerce_jsonable(enriched_data)
@@ -97,8 +94,19 @@ async def _evaluate_and_score(paper_id: str) -> None:
             origin_snippets: dict[int, str] = {}
             if "scores" in eval_results:
                 for dim_id, data in eval_results["scores"].items():
-                    raw_scores[int(dim_id)] = data["score"]
-                    origin_snippets[int(dim_id)] = json.dumps(
+                    try:
+                        dim_index = int(str(dim_id).strip())
+                    except Exception:
+                        continue
+                    if dim_index < 1 or dim_index > 9:
+                        continue
+                    try:
+                        score = float(data.get("score", 3.0))
+                    except Exception:
+                        score = 3.0
+                    score = max(1.0, min(5.0, score))
+                    raw_scores[dim_index] = score
+                    origin_snippets[dim_index] = json.dumps(
                         {
                             "rationale": data.get("rationale"),
                             "snippet": data.get("origin_snippet"),
@@ -139,6 +147,7 @@ async def _evaluate_and_score(paper_id: str) -> None:
                 layer.status = "completed"
                 layer.processed_data = {
                     "text_content": (paper.raw_text or "")[:5000],
+                    "document_profile": paper_profile,
                     "eval_results": eval_results,
                     "enriched_data": jsonable_enriched_data,
                 }
@@ -292,12 +301,18 @@ async def upload_pdf(
 
     # 3. DOI Extraction and Metadata Enrichment
     detected_doi = _extract_doi(final_text) or mock_doi
+    parsed_profile = build_document_profile(final_text, fallback_title=file.filename)
     paper.doi = detected_doi
+    paper.title = parsed_profile.get("title") or file.filename
+    paper.abstract = parsed_profile.get("abstract")
     paper.raw_text = final_text
 
     layer.status = "queued"
     layer.source = extraction_source
-    layer.processed_data = {"text_content": final_text[:5000]}
+    layer.processed_data = {
+        "text_content": final_text[:5000],
+        "document_profile": parsed_profile,
+    }
     session.add(paper)
     session.add(layer)
     await session.commit()

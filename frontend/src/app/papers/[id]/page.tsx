@@ -22,6 +22,11 @@ type ScoringResponse = {
   grade: string;
   integrity_gate_triggered: boolean;
   confidence_tier?: string;
+  insight?: string;
+  investor_fit?: string[];
+  warnings?: string[];
+  executive_summary?: string;
+  investment_recommendation?: string;
   dimensions: Dimension[];
 };
 
@@ -198,16 +203,20 @@ export default function PaperResultsPage() {
                   <div className="border border-white/10 bg-black/30 rounded-xl p-6">
                     <div className="text-white/60 text-sm mb-3">Insight:</div>
                     <div className="text-white/50 text-sm leading-relaxed">
-                      {data.integrity_gate_triggered
-                        ? 'Governance integrity gate triggered. Total score forced to 0.'
-                        : 'Your research shows strong scientific rigor but limited commercialization signals.'}
+                      {data.insight ||
+                        (data.integrity_gate_triggered
+                          ? 'Governance integrity gate triggered. Total score forced to 0.'
+                          : 'Automated analysis complete. Open dimension details for evidence.')}
                     </div>
                   </div>
 
                   <div className="border border-white/10 bg-black/30 rounded-xl p-6">
                     <div className="text-white/60 text-sm mb-3">Investor Fit:</div>
                     <ul className="space-y-2 text-white/60 text-sm">
-                      {['Early-stage deep tech investors', 'Corporate R&D collaboration'].map((t) => (
+                      {(data.investor_fit?.length
+                        ? data.investor_fit
+                        : ['Early-stage deep tech investors', 'Corporate R&D collaboration']
+                      ).map((t) => (
                         <li key={t} className="flex items-center gap-2">
                           <span className="text-[#6efcff]">✓</span>
                           {t}
@@ -219,9 +228,11 @@ export default function PaperResultsPage() {
                   <div className="border border-white/10 bg-black/30 rounded-xl p-6">
                     <div className="text-white/60 text-sm mb-3">Warnings:</div>
                     <ul className="space-y-2 text-white/60 text-sm">
-                      {(data.integrity_gate_triggered
-                        ? ['Governance risk flagged (Dim 9)', 'Score forced to 0']
-                        : ['No go-to-market strategy', 'No industry validation']
+                      {((data.warnings?.length
+                        ? data.warnings
+                        : data.integrity_gate_triggered
+                          ? ['Governance risk flagged (Dim 9)', 'Score forced to 0']
+                          : ['Insufficient risk detail from current extraction', 'Validate external market signals with Layer 3 review'])
                       ).map((t) => (
                         <li key={t} className="flex items-center gap-2">
                           <span className="text-yellow-300">⚠</span>

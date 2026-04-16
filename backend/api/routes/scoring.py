@@ -18,6 +18,59 @@ from backend.services.scoring.engine import compute_score
 
 router = APIRouter()
 
+def _derive_frontend_insights(
+    dimensions: list[dict],
+    integrity_gate_triggered: bool,
+    eval_results: dict | None,
+) -> tuple[str, list[str], list[str]]:
+    if eval_results:
+        insight = str(eval_results.get("insight") or eval_results.get("executive_summary") or "").strip()
+        investor_fit = eval_results.get("investor_fit")
+        warnings = eval_results.get("warnings")
+        if isinstance(investor_fit, list):
+            investor_fit = [str(item).strip() for item in investor_fit if str(item).strip()]
+        else:
+            investor_fit = []
+        if isinstance(warnings, list):
+            warnings = [str(item).strip() for item in warnings if str(item).strip()]
+        else:
+            warnings = []
+        if insight:
+            return insight, investor_fit[:3], warnings[:3]
+
+    by_id = {int(d["dimension_id"]): float(d["raw_score"]) for d in dimensions}
+    rigor = by_id.get(2, 3.0)
+    market = by_id.get(3, 3.0)
+    feasibility = by_id.get(1, 3.0)
+    risk = by_id.get(8, 3.0)
+    governance = by_id.get(9, 3.0)
+
+    if integrity_gate_triggered or governance <= 1.0:
+        return (
+            "Governance integrity gate triggered by high-risk compliance signals.",
+            ["Special-situations investors only"],
+            ["Governance red flag detected", "Total score forced to 0 by integrity policy"],
+        )
+
+    insight = (
+        "Strong technical quality with credible translational potential."
+        if rigor >= 4.0 and feasibility >= 3.5
+        else "Scientific signal present, but translation and execution evidence are still emerging."
+    )
+    investor_fit = (
+        ["Early-stage deep tech investors", "University commercialization partners"]
+        if market < 3.0
+        else ["Category-focused venture funds", "Corporate R&D collaboration"]
+    )
+    warnings = []
+    if market < 3.0:
+        warnings.append("Limited go-to-market evidence in current manuscript")
+    if risk < 3.0:
+        warnings.append("Material technical or execution uncertainty remains")
+    if not warnings:
+        warnings.append("No critical red flags detected from current automated analysis")
+    return insight, investor_fit, warnings
+
 
 @router.post("/evaluate/{doi:path}")
 async def evaluate_scoring_for_doi(
@@ -156,6 +209,17 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
         }
 
     from backend.models.scoring import DIMENSION_NAMES
+    layer = await session.scalar(
+        select(ExtractionLayer)
+        .where(ExtractionLayer.paper_id == paper.id)
+        .order_by(ExtractionLayer.created_at.desc())
+        .limit(1)
+    )
+    eval_results = {}
+    if layer is not None and isinstance(layer.processed_data, dict):
+        maybe_eval = layer.processed_data.get("eval_results")
+        if isinstance(maybe_eval, dict):
+            eval_results = maybe_eval
     
     # Construct frontend-friendly response
     dimensions = []
@@ -184,6 +248,12 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
             "origin_snippet": snippet
         })
 
+    insight, investor_fit, warnings = _derive_frontend_insights(
+        dimensions=dimensions,
+        integrity_gate_triggered=bool(row.integrity_gate_triggered),
+        eval_results=eval_results,
+    )
+
     return {
         "paper_id": str(paper.id),
         "paper_title": paper.title,
@@ -192,7 +262,12 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
         "grade": row.grade,
         "integrity_gate_triggered": row.integrity_gate_triggered,
         "dimensions": dimensions,
-        "confidence_tier": "HIGH (FALCON-OCR)" if "llm" in (row.scored_by or "") else "AUTOMATED"
+        "confidence_tier": "HIGH (FALCON-OCR)" if "llm" in (row.scored_by or "") else "AUTOMATED",
+        "insight": insight,
+        "investor_fit": investor_fit,
+        "warnings": warnings,
+        "executive_summary": eval_results.get("executive_summary", ""),
+        "investment_recommendation": eval_results.get("investment_recommendation", ""),
     }
 
 @router.get("/{doi:path}")
