@@ -20,8 +20,6 @@ services:
         sync: false
       - key: SERPAPI_API_KEY
         sync: false
-      - key: ZHIPU_API_KEY
-        sync: false
     disk:
       name: falcon-model-cache
       mountPath: /root/.cache/huggingface

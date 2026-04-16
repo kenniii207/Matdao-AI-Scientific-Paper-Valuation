@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     # API Keys
     openalex_api_key: str = Field(default="", alias="OPENALEX_API_KEY")
     semantic_scholar_api_key: str = Field(default="", alias="SEMANTIC_SCHOLAR_API_KEY")
-    zhipu_api_key: str = Field(default="", alias="ZHIPU_API_KEY")
     zai_api_key: str = Field(default="", alias="ZAI_API_KEY")
     serpapi_api_key: str = Field(default="", alias="SERPAPI_API_KEY")
 

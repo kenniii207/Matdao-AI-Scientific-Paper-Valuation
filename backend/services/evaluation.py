@@ -13,7 +13,7 @@ class ScientificEvaluator:
     """Orchestrates scientific due diligence using LLM synthesis."""
 
     def __init__(self):
-        self.api_key = settings.zhipu_api_key or settings.zai_api_key
+        self.api_key = settings.zai_api_key
         self.api_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 
     async def evaluate_content(

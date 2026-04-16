@@ -120,6 +120,13 @@ async def upload_pdf(
         logger.error(f"PDF Processing failed: {e}")
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
+    if not final_text or len(final_text.strip()) < 5:
+        logger.error("Extraction failed: No text recovered from PDF.")
+        raise HTTPException(
+            status_code=422, 
+            detail="Extraction failed: Could not extract meaningful text from this PDF. It might be corrupted or entirely unreadable."
+        )
+
     # 3. DOI Extraction and Metadata Enrichment
     detected_doi = _extract_doi(final_text) or mock_doi
     paper.doi = detected_doi
