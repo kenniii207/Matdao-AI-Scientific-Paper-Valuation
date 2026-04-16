@@ -3,6 +3,7 @@ import re
 import logging
 import json
 import asyncio
+import uuid
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from typing import Dict, Any
 from pathlib import Path
@@ -39,9 +40,16 @@ async def _evaluate_and_score(paper_id: str) -> None:
     from backend.services.scoring.engine import compute_score
     from backend.services.evaluation import ScientificEvaluator
 
+    try:
+        paper_uuid = uuid.UUID(paper_id)
+    except Exception:
+        logger.error("Background evaluation got invalid paper_id=%r", paper_id)
+        return
+
     async with async_session_factory() as session:
-        paper = await session.get(ResearchPaper, paper_id)
+        paper = await session.get(ResearchPaper, paper_uuid)
         if paper is None:
+            logger.error("Background evaluation could not find paper_id=%s", paper_id)
             return
 
         existing_score = await session.scalar(
