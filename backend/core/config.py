@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     semantic_scholar_api_key: str = Field(default="", alias="SEMANTIC_SCHOLAR_API_KEY")
     zai_api_key: str = Field(default="", alias="ZAI_API_KEY")
     serpapi_api_key: str = Field(default="", alias="SERPAPI_API_KEY")
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
+    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
 
     # Service URLs
     database_url: str = Field(

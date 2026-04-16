@@ -42,6 +42,8 @@ class GLMOCRAdapter:
 
     async def parse_image(self, image_base64: str, prompt: str = "OCR this document.") -> dict[str, Any]:
         """Send base64-encoded image to GLM-OCR for recognition."""
+        if not self.api_key:
+            raise AdapterError("GLM-OCR: missing ZAI_API_KEY")
         client = await self._get_client()
         payload = {
             "model": "glm-ocr",
@@ -68,8 +70,15 @@ class GLMOCRAdapter:
             content = result["choices"][0]["message"]["content"]
             return {"text": content, "status": "success", "raw_json": result}
         except httpx.HTTPStatusError as exc:
+            body = ""
+            try:
+                body = exc.response.text
+            except Exception:
+                body = ""
+            if body:
+                body = body[:300]
             raise AdapterError(
-                f"GLM-OCR: HTTP {exc.response.status_code}"
+                f"GLM-OCR: HTTP {exc.response.status_code} — {body}"
             ) from exc
         except (KeyError, IndexError) as exc:
             raise AdapterError(

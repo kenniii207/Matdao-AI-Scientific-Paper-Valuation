@@ -1,7 +1,5 @@
 import hashlib
 import re
-import io
-import base64
 import logging
 import json
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
@@ -9,13 +7,12 @@ from typing import Dict, Any
 from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from PIL import Image
 import fitz  # PyMuPDF
 
 from backend.db.session import get_session
 from backend.db.models import ResearchPaper, ExtractionLayer
+from backend.core.config import settings
 from backend.api.adapters.glm_ocr_adapter import GLMOCRAdapter
-from backend.api.adapters.falcon_ocr_adapter import FalconOCRAdapter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -39,7 +36,12 @@ async def upload_pdf(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session)
 ) -> Dict[str, Any]:
-    """Upload PDF and trigger Falcon-first extraction pipeline."""
+    """Upload PDF and trigger extraction + evaluation pipeline.
+
+    Extraction order:
+    1) Native PDF text extraction (fast, best for born-digital PDFs)
+    2) GLM-OCR fallback on first page (optional; requires `ZAI_API_KEY`)
+    """
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
@@ -79,45 +81,72 @@ async def upload_pdf(
     layer = ExtractionLayer(
         paper_id=paper.id,
         layer_number=1,
-        source="falcon-ocr",
+        source="pdf-text",
         status="pending"
     )
     session.add(layer)
     await session.commit()
 
-    # Extraction Logic: Falcon-OCR -> GLM-OCR (API Fallback)
+    # Extraction Logic: PDF text -> GLM-OCR (API fallback)
     final_text = ""
-    extraction_source = "falcon-ocr"
+    extraction_source = "pdf-text"
 
+    doc: fitz.Document | None = None
     try:
         doc = fitz.open(stream=contents, filetype="pdf")
-        if len(doc) > 0:
-            page = doc[0]
-            pix = page.get_pixmap()
-            img_bytes = pix.tobytes("png")
-            pil_img = Image.open(io.BytesIO(img_bytes))
+        if len(doc) <= 0:
+            raise HTTPException(status_code=400, detail="PDF contains no pages")
 
-            # 1. Primary: Falcon-OCR
+        text_parts: list[str] = []
+        for page in doc:
             try:
-                falcon = FalconOCRAdapter()
-                final_text = await falcon.ocr(pil_img)
-            except Exception as ef:
-                logger.error(f"Falcon-OCR failed: {ef}")
-                final_text = ""
+                text_parts.append(page.get_text("text"))
+            except Exception:
+                continue
+        native_text = "\n".join(text_parts).strip()
 
-            # 2. Fallback: GLM-OCR API
-            if not final_text or len(final_text) < 100:
-                logger.info("Falcon yield low. Falling back to GLM-OCR API.")
-                glm = GLMOCRAdapter()
+        if native_text and len(native_text) >= 300:
+            final_text = native_text
+            extraction_source = "pdf-text"
+        else:
+            logger.info("Native PDF text extraction low. Trying GLM-OCR fallback on first page.")
+            if not settings.zai_api_key:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Extraction failed: PDF has little/no embedded text. Configure `ZAI_API_KEY` for GLM-OCR fallback, or upload a text-based PDF.",
+                )
+            glm = GLMOCRAdapter()
+            try:
+                pix = doc[0].get_pixmap()
+                img_bytes = pix.tobytes("png")
+                import base64
+
                 img_b64 = base64.b64encode(img_bytes).decode("utf-8")
                 glm_res = await glm.parse_image(img_b64)
-                final_text = glm_res.get("text", "")
+                final_text = (glm_res.get("text") or "").strip()
                 extraction_source = "glm-ocr-fallback"
-        
-        doc.close()
+            except Exception as eg:
+                logger.error(f"GLM-OCR failed: {eg}")
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        "Extraction failed: PDF has little/no embedded text and OCR not working. "
+                        f"Details: {eg}"
+                    ),
+                ) from eg
+            finally:
+                await glm.close()
     except Exception as e:
-        logger.error(f"PDF Processing failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise
+        logger.error(f"PDF processing failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}") from e
+    finally:
+        try:
+            if doc is not None:
+                doc.close()
+        except Exception:
+            pass
 
     if not final_text or len(final_text.strip()) < 5:
         logger.error("Extraction failed: No text recovered from PDF.")

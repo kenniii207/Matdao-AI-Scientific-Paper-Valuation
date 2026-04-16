@@ -16,6 +16,39 @@ class ScientificEvaluator:
         self.api_key = settings.zai_api_key
         self.api_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
 
+    async def _evaluate_with_gemini(self, prompt: str) -> Dict[str, Any]:
+        api_key = settings.gemini_api_key
+        if not api_key:
+            return {}
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent"
+        payload = {
+            "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.1,
+                "maxOutputTokens": 8192,
+                "responseMimeType": "application/json",
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            try:
+                resp = await client.post(url, headers={"x-goog-api-key": api_key}, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                text = (
+                    data.get("candidates", [{}])[0]
+                    .get("content", {})
+                    .get("parts", [{}])[0]
+                    .get("text", "")
+                )
+                if not text:
+                    return {"error": "Gemini returned empty content", "raw": data}
+                return json.loads(text)
+            except Exception as exc:
+                logger.error(f"Gemini evaluation failed: {exc}")
+                return {"error": str(exc)}
+
     async def evaluate_content(
         self, 
         text_content: str, 
@@ -28,10 +61,6 @@ class ScientificEvaluator:
             text_content: Extracted text from PDF.
             enriched_data: Metadata from OpenAlex, Semantic Scholar, etc.
         """
-        if not self.api_key:
-            logger.error("No Zhipu/GLM API key found for evaluation.")
-            return {}
-
         metadata_str = json.dumps(enriched_data or {}, indent=2)
         
         prompt = f"""
@@ -72,6 +101,13 @@ class ScientificEvaluator:
             "investment_recommendation": "Tier A/B/C/Reject"
         }}
         """
+
+        if settings.gemini_api_key:
+            return await self._evaluate_with_gemini(prompt)
+
+        if not self.api_key:
+            logger.error("No Gemini (GEMINI_API_KEY) or Zhipu/GLM (ZAI_API_KEY) key configured for evaluation.")
+            return {}
 
         async with httpx.AsyncClient(timeout=90.0) as client:
             headers = {
