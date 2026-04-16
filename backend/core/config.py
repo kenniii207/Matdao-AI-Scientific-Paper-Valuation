@@ -31,8 +31,6 @@ class Settings(BaseSettings):
             return url.replace("postgresql://", "postgresql+asyncpg://", 1)
         return url
 
-    grobid_url: str = Field(default="http://localhost:8070", alias="GROBID_URL")
-
     # App
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
     frontend_port: int = Field(default=3000, alias="FRONTEND_PORT")

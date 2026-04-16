@@ -1,28 +1,29 @@
 import hashlib
 import re
+import io
+import base64
+import logging
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from typing import Dict, Any
 from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.db.session import get_session
-from backend.db.models import ResearchPaper, ExtractionLayer
-from backend.api.adapters.grobid_adapter import GrobidAdapter
-from backend.api.adapters.glm_ocr_adapter import GLMOCRAdapter
-from backend.api.adapters.falcon_ocr_adapter import FalconOCRAdapter
-import fitz  # PyMuPDF
-import base64
-import io
 from PIL import Image
+import fitz  # PyMuPDF
 import torch
 
+from backend.db.session import get_session
+from backend.db.models import ResearchPaper, ExtractionLayer
+from backend.api.adapters.glm_ocr_adapter import GLMOCRAdapter
+from backend.api.adapters.falcon_ocr_adapter import FalconOCRAdapter
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
 DOI_REGEX = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
-
 
 def _extract_doi(*text_candidates: str) -> str | None:
     for candidate in text_candidates:
@@ -33,27 +34,25 @@ def _extract_doi(*text_candidates: str) -> str | None:
             return match.group(0).rstrip(".,);]")
     return None
 
-
 @router.post("/upload")
 async def upload_pdf(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session)
 ) -> Dict[str, Any]:
+    """Upload PDF and trigger Falcon-first extraction pipeline."""
     if file.content_type != "application/pdf":
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
 
-    # Read file content safely
     contents = await file.read()
-    
-    # Generate unique DOI-surrogate from hash if needed, but for MVP let's fake a DOI for testing
     file_hash = hashlib.sha256(contents).hexdigest()[:12]
     mock_doi = f"10.matdao/{file_hash}"
 
-    # Save locally
+    # Save locally for reference
     save_path = UPLOAD_DIR / f"{file_hash}.pdf"
     with save_path.open("wb") as f:
         f.write(contents)
 
+    # Deduplication check
     existing_paper = await session.scalar(
         select(ResearchPaper).where(ResearchPaper.matdao_id == file_hash)
     )
@@ -62,13 +61,12 @@ async def upload_pdf(
             "status": "success",
             "mock_doi": existing_paper.doi,
             "filename": file.filename,
-            "confidence_tier": "AUTOMATED_60",
-            "message": "File already uploaded. Reusing existing extraction.",
-            "preview_ocr": "",
+            "message": "File already exists. Reusing data.",
             "paper_id": str(existing_paper.id),
             "deduplicated": True,
         }
 
+    # Create record
     paper = ResearchPaper(
         matdao_id=file_hash,
         doi=mock_doi,
@@ -81,79 +79,73 @@ async def upload_pdf(
     layer = ExtractionLayer(
         paper_id=paper.id,
         layer_number=1,
-        source="grobid+glmocr",
+        source="falcon-ocr",
         status="pending"
     )
     session.add(layer)
     await session.commit()
 
-    # Initialize adapters
-    grobid = GrobidAdapter()
-    glm = GLMOCRAdapter()
-
-    # 1. Grobid Text Extraction
-    try:
-        grobid_res = await grobid.parse_pdf(contents, filename=file.filename)
-        text_data = grobid_res.get("tei_xml", "")
-    except Exception as e:
-        text_data = f"Grobid failed: {str(e)}"
-
-    # 2. GLM-OCR / Falcon-OCR Image Extraction (First page baseline)
-    ocr_data = {}
+    # Extraction Logic: Falcon-OCR -> GLM-OCR (API Fallback)
     falcon_text = ""
-    img_bytes = None
-    
+    glm_text = ""
+    extraction_source = "falcon-ocr"
+
     try:
         doc = fitz.open(stream=contents, filetype="pdf")
         if len(doc) > 0:
+            # Extract first page as preview/metadata source
             page = doc[0]
             pix = page.get_pixmap()
             img_bytes = pix.tobytes("png")
-            img_b64 = base64.b64encode(img_bytes).decode("utf-8")
-            
-            # GLM-OCR (Z.ai API)
-            glm_res = await glm.parse_image(img_b64, prompt="Extract all text and key values from this scientific paper page.")
-            ocr_data = glm_res
-            
-            # Falcon-OCR (Local GPU 300M) — Triggered if Grobid yield is low or GPU available
-            if torch.cuda.is_available() or len(text_data) < 500:
-                try:
-                    falcon = FalconOCRAdapter()
-                    pil_img = Image.open(io.BytesIO(img_bytes))
-                    falcon_text = await falcon.ocr(pil_img)
-                except Exception as ef:
-                    falcon_text = f"Falcon-OCR error: {str(ef)}"
+            pil_img = Image.open(io.BytesIO(img_bytes))
+
+            # 1. Primary: Falcon-OCR (High confidence local model)
+            try:
+                falcon = FalconOCRAdapter()
+                falcon_text = await falcon.ocr(pil_img)
+            except Exception as ef:
+                logger.error(f"Falcon-OCR failed: {ef}")
+                falcon_text = ""
+
+            # 2. Fallback: GLM-OCR API (If Falcon failed or light usage is preferred)
+            if not falcon_text or len(falcon_text) < 100:
+                logger.info("Falcon yield low. Falling back to GLM-OCR API.")
+                glm = GLMOCRAdapter()
+                img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+                glm_res = await glm.parse_image(img_b64)
+                glm_text = glm_res.get("text", "")
+                extraction_source = "glm-ocr-fallback"
+        
         doc.close()
     except Exception as e:
-        ocr_data = {"error": str(e)}
+        logger.error(f"PDF Processing failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
-    detected_doi = _extract_doi(text_data, ocr_data.get("text", ""), falcon_text)
-    if detected_doi and detected_doi != paper.doi:
-        doi_owner = await session.scalar(
-            select(ResearchPaper).where(ResearchPaper.doi == detected_doi)
-        )
-        if doi_owner is None or doi_owner.id == paper.id:
-            paper.doi = detected_doi
-            session.add(paper)
+    final_text = falcon_text or glm_text
+    detected_doi = _extract_doi(final_text) or mock_doi
 
-    # Update DB records with real data
+    # Update paper with detected DOI
+    paper.doi = detected_doi
     layer.status = "completed"
+    layer.source = extraction_source
     layer.processed_data = {
-        "grobid_tei": text_data[:1000] + "...", 
-        "glm_ocr": ocr_data,
-        "falcon_ocr": falcon_text[:2000],
-        "detected_doi": detected_doi,
+        "text_content": final_text[:5000],
+        "falcon_used": bool(falcon_text),
+        "glm_used": bool(glm_text),
+        "detected_doi": detected_doi
     }
+    
+    session.add(paper)
     session.add(layer)
     await session.commit()
 
     return {
         "status": "success",
-        "mock_doi": paper.doi,
+        "doi": paper.doi,
         "filename": file.filename,
-        "confidence_tier": "AUTOMATED_70", # Tier bumped due to multiple extraction layers
-        "message": "File parsed successfully via Grobid, Falcon-OCR, and GLM-OCR.",
-        "preview_ocr": (falcon_text or ocr_data.get("text", ""))[:200],
+        "confidence_tier": "FALCON_300M" if falcon_text else "GLM_API",
+        "message": f"Extraction complete via {extraction_source}",
+        "preview": final_text[:300],
         "paper_id": str(paper.id),
-        "deduplicated": False,
+        "deduplicated": False
     }

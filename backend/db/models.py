@@ -58,7 +58,7 @@ class ExtractionLayer(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     paper_id = Column(UUID(as_uuid=True), ForeignKey("research_papers.id"), nullable=False)
     layer_number = Column(Integer, nullable=False)  # 1=NLP, 2=API, 3=Form, 4=Expert
-    source = Column(String(128))  # e.g. "grobid", "openalex", "semantic_scholar"
+    source = Column(String(128))  # e.g. "ocr", "openalex", "semantic_scholar"
     raw_response = Column(JSON)
     processed_data = Column(JSON)
     status = Column(String(32), default="pending")

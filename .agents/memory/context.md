@@ -1,18 +1,18 @@
 # MatDAO Session Memory — "Forever" Context
 #
-# Rule: Read this at the start of every session. 
-# Update this with major decisions and progress.
+# Status: Phase 1 (Grobid) ABANDONED. 
 
 ## Session 2026-04-16 (Current)
-- **Goal**: Implement Phase 2 (Falcon-OCR GPU) and Render Blueprint.
-- **Status**: Backend code updated with Falcon-OCR (300M) on GPU fallback. Render Blueprint (render.yaml) created for 1-click deploy (standard tier + basic-1gb DB).
-- **Decisions**: 
-    - Removed retired NIH/Crossref adapters to clean clutter.
-    - Added ZAI_API_KEY as general fallback.
-    - Used `lfoppiano/grobid:latest-crf` for lightweight extraction.
-- **Environment**: Phase 1 (Grobid) confirmed working. Phase 2 pending Render setup.
+- **Pivot**: Scrapped Grobid (OOM/Resource heavy). Moved to **Falcon-first** pipeline.
+- **Pipeline**:
+    1. Falcon-OCR (Local GPU 300M) = Primary.
+    2. GLM-OCR (Z.ai API) = Fallback.
+    3. LLM Router = Dynamic selection (Gemini/DeepSeek/GLM).
+- **Infra**: Render Blueprint simplified to single GPU service. 
+- **Purge**: All Grobid adapter code and services DELETED.
 
 ## Perpetual Guidelines
-- Maintain "Caveman" mode for token efficiency.
-- Layer 1 Extraction Order: Grobid (Text) -> Falcon-OCR (GPU Vision) -> GLM-OCR (API Vision).
+- Falcon-300M stays on GPU. 
+- Use `low_cpu_mem_usage=True` for transformers.
+- Context injection: Prefer small snippets. 
 - Integrity Gate: Governance Score 1 = Total 0.

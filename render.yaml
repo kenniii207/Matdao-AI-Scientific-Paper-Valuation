@@ -1,55 +1,31 @@
-# render.yaml — Render Infrastructure-as-Code (Phase 2)
-#
-# Services:
-#   1. matdao-backend  — FastAPI (GPU enabled for Falcon-OCR)
-#   2. matdao-grobid   — Grobid CRF (Dedicated image)
-#   3. matdao-postgres — Managed PostgreSQL
-#
-# Deploy:  render blueprint apply
-
 services:
-  # ── 1. FastAPI Backend (GPU enabled) ──────────────────────────────────
   - type: web
     name: matdao-backend
-    runtime: docker
-    dockerContext: .
-    dockerfilePath: Dockerfile
-    plan: starter          # Manual step: Enable GPU (Accelerated Compute) in Dashboard after deploy
-    region: singapore      # Recommend matching region for all services
+    runtime: python
+    repo: https://github.com/kenniii207/Matdao-AI-Scientific-Paper-Valuation
     branch: main
-    healthCheckPath: /health
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    plan: standard   # matches your Basic plan with GPU
     envVars:
       - key: DATABASE_URL
         fromDatabase:
           name: matdao-postgres
           property: connectionString
-      - key: GROBID_URL
-        value: http://matdao-grobid:8070 # Logic: http://[service-name]:[port]
       - key: ZAI_API_KEY
-        sync: false        # Required for GLM-OCR fallback
+        sync: false
       - key: OPENALEX_API_KEY
         sync: false
       - key: SEMANTIC_SCHOLAR_API_KEY
         sync: false
-      - key: ZHIPU_API_KEY
-        sync: false
       - key: SERPAPI_API_KEY
         sync: false
-
-  # ── 2. Grobid (Separate Private Web Service) ──────────────────────────
-  - type: web
-    name: matdao-grobid
-    runtime: image
-    image:
-      url: lfoppiano/grobid:latest-crf   # Lightweight CRF-only
-    plan: starter          # 512MB RAM minimum
-    region: singapore
-    healthCheckPath: /api/isalive
+      - key: ZHIPU_API_KEY
+        sync: false
+    gpu: true   # Enable for Falcon-OCR
+    disk: 5GB   # for HF cache
 
 databases:
-  # ── 3. PostgreSQL Database ──────────────────────────────────────────
   - name: matdao-postgres
     databaseName: matdao
-    user: matdao
-    plan: basic-1gb        # Multi-region failover and 1GB RAM
-    region: singapore
+    plan: basic-1gb

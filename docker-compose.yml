@@ -1,25 +1,12 @@
-# Docker Compose for MatDAO Development
+# Docker Compose for MatDAO Development (Falcon-first)
 #
 # Services:
-# - Grobid (PDF → TEI XML)
 # - Postgres (+pgvector image)
-# - Backend API (calls Grobid; optional GLM-OCR via `ZAI_API_KEY`)
+# - Backend API (Local GPU / GLM-OCR fallback)
 
 services:
-  grobid:
-    image: lfoppiano/grobid:latest-crf
-    container_name: grobid
-    ports:
-      - "8070:8070"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8070/api/isalive"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
   postgres:
-    image: pgvector/pgvector:pg16
+    image: ankane/pgvector:latest
     container_name: matdao-postgres
     ports:
       - "5432:5432"
@@ -37,19 +24,14 @@ services:
       retries: 5
 
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: matdao-backend
     ports:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql+asyncpg://matdao:matdao_password@postgres:5432/matdao
-      - GROBID_URL=http://grobid:8070
       - ZAI_API_KEY=${ZAI_API_KEY:-}
     depends_on:
-      grobid:
-        condition: service_healthy
       postgres:
         condition: service_healthy
     restart: unless-stopped
