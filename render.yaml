@@ -1,0 +1,62 @@
+# render.yaml — Render Infrastructure-as-Code for MatDAO
+#
+# Services:
+#   1. matdao-backend  — FastAPI web service (public, Basic plan)
+#   2. matdao-grobid   — Grobid CRF private service (internal only, Basic plan)
+#
+# The Render Postgres database is created separately via the Render dashboard
+# and connected via DATABASE_URL (internal Render URL preferred).
+#
+# Deploy:  render blueprint apply
+# Docs:    https://render.com/docs/blueprint-spec
+
+services:
+  # ── 1. FastAPI Backend (public web service) ───────────────────────────────
+  - type: web
+    name: matdao-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: basic            # 1 GB RAM, 0.5 CPU — fits alongside Grobid
+    region: singapore      # Adjust to your nearest region
+    branch: main
+    healthCheckPath: /health
+    envVars:
+      # Render Internal Postgres URL — set this in the Render dashboard
+      # or link to your Render Postgres service. Internal URL avoids egress fees.
+      - key: DATABASE_URL
+        sync: false        # Set manually in Render dashboard → Environment
+
+      # Grobid internal hostname — private service on Render shares the same
+      # private network. Use the internal hostname format: <service-name>:8070
+      - key: GROBID_URL
+        value: http://matdao-grobid:8070
+
+      - key: OPENALEX_API_KEY
+        sync: false
+      - key: SEMANTIC_SCHOLAR_API_KEY
+        sync: false
+      - key: NIH_REPORTER_EMAIL
+        sync: false
+      - key: CROSSREF_EMAIL
+        sync: false
+      - key: ZHIPU_API_KEY
+        sync: false
+      - key: SERPAPI_API_KEY
+        sync: false
+
+  # ── 2. Grobid CRF-only (private internal service) ────────────────────────
+  # Private services are NOT exposed to the internet — only reachable by other
+  # Render services in the same account via internal DNS.
+  - type: pserv             # "pserv" = Render Private Service
+    name: matdao-grobid
+    runtime: image
+    image:
+      url: docker.io/grobid/grobid:0.9.0-crf   # ~478 MB, CPU-only, CRF extractor
+    plan: basic             # 1 GB RAM — stays within budget for CRF-only image
+    region: singapore       # Must match backend region for low-latency internal comms
+    disk:
+      name: grobid-data
+      mountPath: /opt/grobid
+      sizeGB: 5             # Render 5 GB storage limit — sufficient for CRF models/cache
+    # No envVars needed — Grobid never connects to Postgres

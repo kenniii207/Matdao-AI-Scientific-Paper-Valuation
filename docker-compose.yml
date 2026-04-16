@@ -1,21 +1,27 @@
 # Docker Compose for MatDAO local development.
 #
 # Services:
-# - grobid: Layer 1 NLP extraction (port 8070)
-# - postgres: PostgreSQL 16 with pgvector (port 5432)
+#   - grobid:   Layer 1 CRF extraction (port 8070) — lightweight CPU-only ~478 MB
+#   - postgres: PostgreSQL 16 with pgvector (port 5432)
+#   - backend:  FastAPI application (port 8000)
+#
+# NOTE: Grobid does NOT touch Postgres — only the backend does.
 
 services:
   grobid:
-    image: grobid/grobid:0.8.1
-    container_name: matdao-grobid
+    image: grobid/grobid:0.9.0-crf   # CRF-only, ~478 MB, CPU-only — fits Render 1 GB RAM
+    container_name: grobid
     ports:
       - "8070:8070"
-    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8070/api/isalive"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    volumes:
+      - grobid-data:/opt/grobid   # Persist cache/models across container restarts
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -36,5 +42,31 @@ services:
       timeout: 5s
       retries: 5
 
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: matdao-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://matdao:matdao_secret@postgres:5432/matdao_db}
+      - GROBID_URL=http://grobid:8070          # Internal service name — CRF-only extractor
+      - OPENALEX_API_KEY=${OPENALEX_API_KEY:-}
+      - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
+      - NIH_REPORTER_EMAIL=${NIH_REPORTER_EMAIL:-}
+      - CROSSREF_EMAIL=${CROSSREF_EMAIL:-}
+      - ZHIPU_API_KEY=${ZHIPU_API_KEY:-}
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
+    depends_on:
+      grobid:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./uploads:/app/uploads   # Persist uploaded PDFs
+
 volumes:
   pgdata:
+  grobid-data:   # Named volume for Grobid cache/models (~5 GB storage budget on Render)
