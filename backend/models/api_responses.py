@@ -49,18 +49,6 @@ class SerpApiScholarPaper(BaseModel):
     raw_json: Optional[dict] = Field(default=None, exclude=True)
 
 
-# --- Crossref ---
-
-class CrossrefWork(BaseModel):
-    """Crossref work metadata, focused on retraction detection."""
-
-    doi: Optional[str] = None
-    title: Optional[str] = None
-    is_retracted: bool = False
-    update_to: list[dict] = Field(default_factory=list)
-    raw_json: Optional[dict] = Field(default=None, exclude=True)
-
-
 # --- NIH RePORTER ---
 
 class NIHGrant(BaseModel):

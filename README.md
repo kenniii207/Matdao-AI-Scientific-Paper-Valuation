@@ -11,13 +11,13 @@ MatDAO evaluates scientific research for investment using a **4-layer data extra
 | Layer | Strategy | Output |
 |-------|----------|--------|
 | **1. Neural Extraction** | Falcon-OCR (local) + GLM-OCR | Text extraction, table parsing, DOI discovery |
-| **2. API Enrichment** | OpenAlex, Semantic Scholar, Crossref | Citation metrics, retraction status, funding verification |
+| **2. API Enrichment** | OpenAlex, Semantic Scholar | Citation metrics, funding verification |
 | **3. Autonomous Eval** | LLM Synthesis (GLM-4) | 9-dimension scoring, rationale, audit snippets |
 | **4. Expert Audit** | Human-in-the-loop | Final investment grading |
 
 ### Integrity Gate (Dimension 9)
 
-If a **retraction** is detected via Crossref, the total score is **forced to 0** regardless of all other dimensions. This is a binary multiplier — no exceptions.
+If **Dimension 9 (Governance) = 1**, the total score is **forced to 0** regardless of all other dimensions. This is a binary multiplier — no exceptions.
 
 ### Scoring Formula
 
@@ -66,7 +66,7 @@ PYTHONPATH=.. python -m pytest tests/ -v
 - **Database**: PostgreSQL 16 + pgvector
 - **OCR**: Falcon-OCR (300M local inference) + GLM-OCR (API fallback)
 - **Evaluation**: GLM-4 (Scientific synthesis & 9-dimension scoring)
-- **APIs**: OpenAlex, Semantic Scholar, Crossref (retraction), NIH RePORTER, OSF, ClinicalTrials.gov, Falcon-OCR, GLM-OCR.
+- **APIs**: OpenAlex, Semantic Scholar, NIH RePORTER, OSF, ClinicalTrials.gov, Falcon-OCR, GLM-OCR.
 
 ## License
 

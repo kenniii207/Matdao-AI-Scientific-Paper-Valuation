@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.api.adapters.crossref_adapter import CrossrefAdapter
 from backend.api.adapters.openalex_adapter import OpenAlexAdapter
 from backend.api.adapters.semantic_scholar_adapter import SemanticScholarAdapter
 from backend.api.adapters.serpapi_scholar_adapter import SerpApiScholarAdapter
@@ -30,12 +29,10 @@ async def evaluate_scoring_for_doi(
     oa_adapter = OpenAlexAdapter()
     s2_adapter = SemanticScholarAdapter()
     serp_adapter = SerpApiScholarAdapter()
-    crossref_adapter = CrossrefAdapter()
 
     s2_paper = None
     oa_work = None
     serpapi_paper = None
-    crossref_work = None
     source_errors: dict[str, str] = {}
 
     try:
@@ -55,22 +52,17 @@ async def evaluate_scoring_for_doi(
         except Exception as exc:
             source_errors["serpapi_google_scholar"] = str(exc)
 
-        try:
-            crossref_work = await crossref_adapter.check_retraction(doi=paper.doi)
-        except Exception as exc:
-            source_errors["crossref"] = str(exc)
     finally:
         await oa_adapter.close()
         await s2_adapter.close()
         await serp_adapter.close()
-        await crossref_adapter.close()
 
     dim2_score, dim2_snippet = score_dimension2(
         s2_paper=s2_paper,
         oa_work=oa_work,
         serpapi_paper=serpapi_paper,
     )
-    dim9_score, dim9_snippet, _ = score_dimension9(crossref_work=crossref_work)
+    dim9_score, dim9_snippet, _ = score_dimension9()
 
     if source_errors:
         dim2_data = json.loads(dim2_snippet)

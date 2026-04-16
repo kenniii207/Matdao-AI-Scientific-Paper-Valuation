@@ -1,9 +1,9 @@
 """Dimension 9: Governance & Transparency — automated scoring logic.
 
-Acts as BINARY GATE: retraction found → score = 1 → total = 0.
+Acts as BINARY GATE: governance red flag found → score = 1 → total = 0.
 
 Factors:
-1. Retraction Check (Crossref — binary gate)
+1. Governance Red Flag (binary gate)
 2. Funding Audit (NIH RePORTER verification)
 3. Author Credentials (h-index from OpenAlex/Semantic Scholar)
 """
@@ -14,37 +14,37 @@ import json
 import logging
 from typing import Optional
 
-from backend.models.api_responses import CrossrefWork, NIHGrant
+from backend.models.api_responses import NIHGrant
 
 logger = logging.getLogger(__name__)
 
 
 def score_dimension9(
-    crossref_work: Optional[CrossrefWork] = None,
+    governance_red_flag: bool = False,
+    governance_evidence: Optional[list[dict]] = None,
     nih_grants: Optional[list[NIHGrant]] = None,
     author_h_indices: Optional[list[int]] = None,
 ) -> tuple[float, str, bool]:
     """Compute Dimension 9 raw score (1-5).
 
     Returns:
-        (raw_score, origin_snippet, is_retraction_found)
+        (raw_score, origin_snippet, is_red_flag_found)
 
-    If retraction is found, raw_score = 1.0 and is_retraction_found = True.
+    If governance red flag is found, raw_score = 1.0 and is_red_flag_found = True.
     The scoring engine will then force total to 0 via Integrity Gate.
     """
     snippets = {}
 
-    # 1. RETRACTION CHECK — BINARY GATE
-    if crossref_work and crossref_work.is_retracted:
+    # 1. GOVERNANCE RED FLAG — BINARY GATE
+    if governance_red_flag:
         logger.critical(
-            "RETRACTION DETECTED for DOI %s — Integrity Gate will force total to 0",
-            crossref_work.doi,
+            "GOVERNANCE RED FLAG DETECTED — Integrity Gate will force total to 0"
         )
-        snippets["is_retracted"] = True
-        snippets["update_to"] = crossref_work.update_to[:3]  # truncate
+        snippets["is_red_flag"] = True
+        snippets["evidence"] = (governance_evidence or [])[:3]  # truncate
         return 1.0, json.dumps(snippets, default=str), True
 
-    snippets["is_retracted"] = False
+    snippets["is_red_flag"] = False
     sub_scores = [4.0]  # no retraction = base 4
 
     # 2. Funding Audit
