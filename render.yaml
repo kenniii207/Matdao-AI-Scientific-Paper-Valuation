@@ -24,9 +24,7 @@ services:
           name: matdao-postgres
           property: connectionString
       - key: GROBID_URL
-        fromService:
-          name: matdao-grobid
-          property: internalUrl
+        value: http://matdao-grobid:8070 # Logic: http://[service-name]:[port]
       - key: ZAI_API_KEY
         sync: false        # Required for GLM-OCR fallback
       - key: OPENALEX_API_KEY
