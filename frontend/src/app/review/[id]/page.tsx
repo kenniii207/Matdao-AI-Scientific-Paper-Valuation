@@ -5,6 +5,8 @@ import validator from '@rjsf/validator-ajv8';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import AppFooter from '@/components/AppFooter';
+import AppHeader from '@/components/AppHeader';
 
 interface PageProps {
   params: { id: string };
@@ -52,37 +54,40 @@ export default function ExpertReviewPage({ params }: PageProps) {
   );
 
   return (
-    <main className="min-h-screen px-6 py-12 max-w-4xl mx-auto">
-      <div className="mb-8 flex items-center justify-between">
-        <Link
-          href={`/papers/${encodeURIComponent(paperId)}`}
-          className="inline-flex items-center gap-2 text-slate-400 hover:text-primary transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to Dashboard
-        </Link>
-        <span className="text-xs font-semibold tracking-[0.1em] uppercase text-primary">Layer 3 Human Audit</span>
-      </div>
+    <div className="min-h-screen flex flex-col">
+      <AppHeader />
 
-      <section className="glass-card p-8">
-        <h1 className="text-3xl font-semibold mb-2">Expert Review Intake</h1>
-        <p className="text-sm text-slate-400 mb-6">Paper ID: {paperId}</p>
-
-        {submitted ? (
-          <div className="rounded-md border border-primary/40 bg-primary/10 px-4 py-3 text-primary">
-            Expert review was captured locally for this prototype flow.
-          </div>
-        ) : null}
-
-        <div className="[&_label]:text-slate-300 [&_input]:bg-black/20 [&_input]:border [&_input]:border-outline_variant/40 [&_input]:rounded-md [&_textarea]:bg-black/20 [&_textarea]:border [&_textarea]:border-outline_variant/40 [&_textarea]:rounded-md [&_select]:bg-black/20 [&_select]:border [&_select]:border-outline_variant/40 [&_button[type='submit']]:bg-gradient-to-br [&_button[type='submit']]:from-primary_container [&_button[type='submit']]:to-primary [&_button[type='submit']]:text-black [&_button[type='submit']]:font-semibold [&_button[type='submit']]:rounded-sm [&_button[type='submit']]:px-4 [&_button[type='submit']]:py-2">
-          <Form
-            schema={schema}
-            uiSchema={uiSchema}
-            validator={validator}
-            onSubmit={() => setSubmitted(true)}
-          />
+      <main className="flex-grow px-6 py-12 max-w-4xl mx-auto w-full">
+        <div className="mb-8 flex items-center justify-between">
+          <Link
+            href={`/papers/${encodeURIComponent(paperId)}`}
+            className="inline-flex items-center gap-2 text-on-surface-variant hover:text-primary-fixed transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Dashboard
+          </Link>
+          <span className="text-xs font-semibold tracking-[0.2em] uppercase text-primary-fixed">
+            Layer 3 Human Audit
+          </span>
         </div>
-      </section>
-    </main>
+
+        <section className="bg-surface-container rounded-xl p-8 border border-outline-variant/15">
+          <h1 className="text-3xl font-headline font-extrabold mb-2">Expert Review Intake</h1>
+          <p className="text-sm text-on-surface-variant mb-6">Paper ID: {paperId}</p>
+
+          {submitted ? (
+            <div className="rounded-md border border-primary-fixed/30 bg-primary-fixed/10 px-4 py-3 text-primary-fixed">
+              Expert review captured locally for this prototype flow.
+            </div>
+          ) : null}
+
+          <div className="[&_label]:text-on-surface [&_input]:bg-black/20 [&_input]:border [&_input]:border-outline-variant/40 [&_input]:rounded-md [&_textarea]:bg-black/20 [&_textarea]:border [&_textarea]:border-outline-variant/40 [&_textarea]:rounded-md [&_select]:bg-black/20 [&_select]:border [&_select]:border-outline-variant/40 [&_button[type='submit']]:bg-primary-fixed [&_button[type='submit']]:text-on-primary-fixed [&_button[type='submit']]:font-semibold [&_button[type='submit']]:rounded-sm [&_button[type='submit']]:px-4 [&_button[type='submit']]:py-2">
+            <Form schema={schema} uiSchema={uiSchema} validator={validator} onSubmit={() => setSubmitted(true)} />
+          </div>
+        </section>
+      </main>
+
+      <AppFooter />
+    </div>
   );
 }
