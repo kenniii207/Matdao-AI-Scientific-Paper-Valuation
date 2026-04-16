@@ -40,7 +40,6 @@ class Settings(BaseSettings):
     serpapi_base_url: str = "https://serpapi.com"
     osf_base_url: str = "https://api.osf.io/v2"
     clinical_trials_base_url: str = "https://clinicaltrials.gov/api/v2"
-    openalex_email: str = Field(default="ops@matdao.ai", alias="OPENALEX_EMAIL")
 
     # Rate Limits (requests per second)
     openalex_rate_limit: float = 100.0

@@ -20,7 +20,7 @@ class OpenAlexAdapter(BaseAdapter):
         super().__init__(
             base_url=settings.openalex_base_url,
             rate_limit=settings.openalex_rate_limit,
-            headers={"User-Agent": f"MatDAO/0.1 (mailto:{settings.openalex_email})"},
+            headers={"User-Agent": "MatDAO/0.1"},
         )
         self._default_params = params
 
