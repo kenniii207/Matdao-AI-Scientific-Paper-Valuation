@@ -23,16 +23,40 @@ export default function PaperAuditPage() {
       try {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
         const res = await fetch(`${apiUrl}/api/scoring/results/${id}`);
-        if (!res.ok) throw new Error('Result not found or not yet processed.');
+        if (res.status === 404) return false;
+        if (!res.ok) throw new Error('Backend error while retrieving result.');
         const json = await res.json();
         setData(json);
+        return true;
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Analysis retrieval failed.');
+        return true;
       } finally {
-        setLoading(false);
+        // handled outside for polling
       }
     };
-    fetchResults();
+
+    let cancelled = false;
+    const start = Date.now();
+    const poll = async () => {
+      const done = await fetchResults();
+      if (cancelled) return;
+      if (done) {
+        setLoading(false);
+        return;
+      }
+      if (Date.now() - start > 120_000) {
+        setError('Still processing. Please refresh in a minute.');
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setTimeout(poll, 2000);
+    };
+    poll();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (loading) return (

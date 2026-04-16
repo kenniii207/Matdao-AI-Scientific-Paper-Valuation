@@ -31,7 +31,7 @@ export default function SubmitPage() {
       if (res.ok) {
         setResult(data);
         setStep('complete');
-        setMessage('Evaluation complete. Paper scored and registered.');
+        setMessage(data.status === 'queued' ? 'Upload received. Evaluation running...' : 'Evaluation complete. Paper scored and registered.');
       } else {
         setStep('upload');
         setMessage('Extraction Error: ' + data.detail);
@@ -163,15 +163,15 @@ export default function SubmitPage() {
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                  <div className="p-4 rounded bg-white/5 border border-white/5">
-                    <span className="text-[10px] uppercase font-mono text-[#b8b8b8]">Total Score</span>
-                    <div className="text-2xl font-bold text-[#97fdff]">{result.score}/100</div>
-                  </div>
-                  <div className="p-4 rounded bg-white/5 border border-white/5">
-                    <span className="text-[10px] uppercase font-mono text-[#b8b8b8]">Confidence</span>
-                    <div className="text-sm font-bold">HIGH (FALCON-OCR)</div>
-                  </div>
+	                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+	                  <div className="p-4 rounded bg-white/5 border border-white/5">
+	                    <span className="text-[10px] uppercase font-mono text-[#b8b8b8]">Total Score</span>
+	                    <div className="text-2xl font-bold text-[#97fdff]">{result.score != null ? `${result.score}/100` : '--'}</div>
+	                  </div>
+	                  <div className="p-4 rounded bg-white/5 border border-white/5">
+	                    <span className="text-[10px] uppercase font-mono text-[#b8b8b8]">Confidence</span>
+	                    <div className="text-sm font-bold">HIGH (FALCON-OCR)</div>
+	                  </div>
                   <div className="p-4 rounded bg-white/5 border border-white/5 col-span-2">
                     <span className="text-[10px] uppercase font-mono text-[#b8b8b8]">Integrity Gate</span>
                     <div className="flex items-center gap-2 mt-1">
