@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiUrl, fetchWithTimeout } from '@/lib/api';
 
 export default function Dropzone() {
   const [loading, setLoading] = useState(false);
@@ -18,11 +19,10 @@ export default function Dropzone() {
     setMessage('Uploading & parsing...');
     
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/upload`, {
+      const res = await fetchWithTimeout(apiUrl('/api/upload'), {
         method: 'POST',
         body: formData,
-      });
+      }, 35000);
       const data = await res.json();
       if (res.ok) {
         if (!data.paper_id) {

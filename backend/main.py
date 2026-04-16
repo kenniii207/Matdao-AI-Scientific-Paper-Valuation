@@ -50,6 +50,11 @@ app.include_router(scoring.router, prefix="/api/scoring", tags=["scoring"])
 app.include_router(upload.router, prefix="/api", tags=["upload"])
 
 
+@app.get("/")
+async def root():
+    return {"service": "matdao-backend", "status": "ok", "health": "/health"}
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "version": "0.1.0"}

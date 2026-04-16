@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { apiUrl, fetchWithTimeout } from '@/lib/api';
 
 interface Stats {
   total_papers: number;
@@ -14,8 +15,7 @@ export default function ProgressStats() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-        const res = await fetch(`${apiUrl}/api/papers/stats/summary`);
+        const res = await fetchWithTimeout(apiUrl('/api/papers/stats/summary'));
         const data = await res.json();
         setStats(data);
       } catch (e) {

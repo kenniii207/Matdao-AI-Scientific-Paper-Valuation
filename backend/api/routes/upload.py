@@ -31,6 +31,14 @@ _EVALUATION_SEMAPHORE = asyncio.Semaphore(max(1, int(settings.max_parallel_evalu
 
 DOI_REGEX = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
 
+_KNOWN_PDF_CONTENT_TYPES = {
+    "application/pdf",
+    "application/x-pdf",
+    "application/acrobat",
+    "application/vnd.pdf",
+    "text/pdf",
+}
+
 def _extract_doi(*text_candidates: str) -> str | None:
     for candidate in text_candidates:
         if not candidate:
@@ -39,6 +47,19 @@ def _extract_doi(*text_candidates: str) -> str | None:
         if match:
             return match.group(0).rstrip(".,);]")
     return None
+
+
+def _is_likely_pdf(file: UploadFile, contents: bytes) -> bool:
+    content_type = (file.content_type or "").lower().strip()
+    filename = (file.filename or "").lower().strip()
+    has_pdf_header = contents[:5] == b"%PDF-"
+    filename_pdf = filename.endswith(".pdf")
+
+    if content_type in _KNOWN_PDF_CONTENT_TYPES:
+        return True
+    if content_type in {"application/octet-stream", "binary/octet-stream"}:
+        return has_pdf_header or filename_pdf
+    return has_pdf_header or filename_pdf
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -299,10 +320,12 @@ async def upload_pdf(
     1) Native PDF text extraction (fast, best for born-digital PDFs)
     2) GLM-OCR fallback on first page (optional; requires `ZAI_API_KEY`)
     """
-    if file.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
-
     contents = await file.read()
+    if not _is_likely_pdf(file, contents):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are allowed. Upload a valid .pdf document.",
+        )
     file_hash = hashlib.sha256(contents).hexdigest()[:12]
     mock_doi = f"10.matdao/{file_hash}"
 

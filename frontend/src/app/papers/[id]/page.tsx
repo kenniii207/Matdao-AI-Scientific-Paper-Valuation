@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import AppFooter from '@/components/AppFooter';
+import { apiUrl, fetchWithTimeout } from '@/lib/api';
 
 type Dimension = {
   dimension_id: number;
@@ -56,14 +57,19 @@ export default function PaperResultsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [loadingStatus, setLoadingStatus] = useState('Connecting to backend...');
 
   useEffect(() => {
     let cancelled = false;
     const start = Date.now();
+    let consecutiveFailures = 0;
 
     const fetchOnce = async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/scoring/results/${encodeURIComponent(paperId)}`);
+      const res = await fetchWithTimeout(
+        apiUrl(`/api/scoring/results/${encodeURIComponent(paperId)}`),
+        {},
+        15000,
+      );
       if (res.status === 404 || res.status === 202) return null;
       if (!res.ok) throw new Error('Backend error while retrieving result.');
 
@@ -80,25 +86,37 @@ export default function PaperResultsPage() {
         const json = await fetchOnce();
         if (cancelled) return;
         if (json) {
+          consecutiveFailures = 0;
+          setLoadingStatus('Finalizing scorecard...');
           setData(json);
           setLoading(false);
           return;
         }
+        setLoadingStatus('Running extraction, enrichment, and scoring pipeline...');
+        consecutiveFailures = 0;
       } catch (e) {
         if (cancelled) return;
-        setError(e instanceof Error ? e.message : String(e));
+        consecutiveFailures += 1;
+        setLoadingStatus(
+          consecutiveFailures >= 2
+            ? 'Reconnecting to backend...'
+            : 'Waiting for scoring service...',
+        );
+      }
+
+      if (Date.now() - start > 180_000) {
+        setError('Still processing after 3 minutes. Please refresh in a minute.');
         setLoading(false);
         return;
       }
-
-      if (Date.now() - start > 120_000) {
-        setError('Still processing. Please refresh in a minute.');
+      if (consecutiveFailures >= 8) {
+        setError('Temporary network issue while fetching results. Please retry.');
         setLoading(false);
         return;
       }
 
       setLoading(true);
-      setTimeout(poll, 2000);
+      setTimeout(poll, Math.min(3500, 1400 + consecutiveFailures * 350));
     };
 
     poll();
@@ -159,7 +177,7 @@ export default function PaperResultsPage() {
                 Analyzing your research
               </h1>
               <p className="text-white/45 text-sm md:text-base mb-8">
-                Running extraction, enrichment, and scoring pipeline.
+                {loadingStatus}
               </p>
 
               <div className="progress-shimmer w-full max-w-3xl mx-auto h-5 rounded-full border border-white/15 bg-white/5 overflow-hidden">

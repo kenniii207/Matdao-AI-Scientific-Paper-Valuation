@@ -1,19 +1,12 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import AppFooter from '@/components/AppFooter';
+import { apiUrl, fetchWithTimeout } from '@/lib/api';
 
 type UploadState = 'idle' | 'uploading' | 'error';
-
-function formatDuration(totalSeconds: number) {
-  const safe = Math.max(0, Math.floor(totalSeconds));
-  const minutes = Math.floor(safe / 60);
-  const seconds = safe % 60;
-  if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
-  return `${seconds}s`;
-}
 
 export default function SubmitClient() {
   const router = useRouter();
@@ -23,8 +16,6 @@ export default function SubmitClient() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [message, setMessage] = useState<string>('');
-  const [uploadStartedAt, setUploadStartedAt] = useState<number | null>(null);
-  const [uploadElapsedSeconds, setUploadElapsedSeconds] = useState(0);
 
   const headline = useMemo(() => {
     if (intent === 'strength') return 'Validate research strength';
@@ -43,29 +34,31 @@ export default function SubmitClient() {
   const primaryIntent = intent === 'evaluate' || !intent;
   const primaryCtaLabel = primaryIntent ? 'Start Prototype Evaluation' : 'Start Analysis';
 
-  useEffect(() => {
-    if (uploadState !== 'uploading' || !uploadStartedAt) {
-      setUploadElapsedSeconds(0);
-      return;
-    }
-    const timer = setInterval(() => {
-      setUploadElapsedSeconds(Math.floor((Date.now() - uploadStartedAt) / 1000));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [uploadState, uploadStartedAt]);
-
   const uploadFile = async (file: File) => {
     setUploadState('uploading');
-    setUploadStartedAt(Date.now());
     setMessage('Uploading PDF and extracting text...');
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await fetch(`${apiUrl}/api/upload`, { method: 'POST', body: formData });
-      const data = await res.json().catch(() => ({}));
+      let res: Response | null = null;
+      let data: any = {};
+      let lastError: Error | null = null;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        try {
+          res = await fetchWithTimeout(apiUrl('/api/upload'), { method: 'POST', body: formData }, 35000);
+          data = await res.json().catch(() => ({}));
+          break;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          if (attempt < 2) {
+            setMessage('Connecting to backend... retrying upload once.');
+            await new Promise((resolve) => setTimeout(resolve, 900));
+          }
+        }
+      }
+      if (!res) throw lastError || new Error('Unable to reach backend service.');
 
       if (!res.ok) {
         const detail = data?.detail || data?.error || 'Upload failed';
@@ -79,7 +72,6 @@ export default function SubmitClient() {
       router.push(`/papers/${encodeURIComponent(String(paperId))}`);
     } catch (err) {
       setUploadState('error');
-      setUploadStartedAt(null);
       setMessage(err instanceof Error ? err.message : String(err));
     }
   };
@@ -180,15 +172,8 @@ export default function SubmitClient() {
             </button>
 
             {message ? (
-              <div className="space-y-1">
-                <div className={uploadState === 'error' ? 'text-error text-sm' : 'text-white/35 text-sm'}>
-                  {message}
-                </div>
-                {uploadState === 'uploading' ? (
-                  <div className="text-xs text-[#9bf8ff]">
-                    Elapsed: {formatDuration(uploadElapsedSeconds)} · Typical first result in ~45-90s
-                  </div>
-                ) : null}
+              <div className={uploadState === 'error' ? 'text-error text-sm' : 'text-white/35 text-sm'}>
+                {message}
               </div>
             ) : (
               <div className="text-white/20 text-xs">Paper intent: {intent || 'evaluate'}</div>
