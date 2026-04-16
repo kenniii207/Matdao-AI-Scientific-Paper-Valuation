@@ -35,6 +35,7 @@ export default function PaperResultsPage() {
   const [data, setData] = useState<ScoringResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,14 +81,21 @@ export default function PaperResultsPage() {
     };
   }, [paperId]);
 
+  useEffect(() => {
+    if (!loading) return;
+    setElapsedMs(0);
+    const start = Date.now();
+    const interval = setInterval(() => setElapsedMs(Date.now() - start), 1000);
+    return () => clearInterval(interval);
+  }, [loading]);
+
   const score = useMemo(() => (data ? clamp(Math.round(data.total_score), 0, 100) : 0), [data]);
 
   const progressPercent = useMemo(() => {
     if (!loading) return 100;
-    // Fake progress curve for UX; real compute happens on backend.
-    const t = Date.now() % 120000;
-    return clamp(Math.round(15 + (t / 120000) * 70), 15, 85);
-  }, [loading]);
+    // UX progress curve; real compute happens on backend.
+    return clamp(Math.round(15 + (elapsedMs / 120000) * 70), 15, 85);
+  }, [elapsedMs, loading]);
 
   const dims = useMemo(() => {
     const arr = data?.dimensions || [];
