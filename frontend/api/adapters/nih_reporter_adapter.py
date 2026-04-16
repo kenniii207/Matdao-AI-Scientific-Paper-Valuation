@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.api.adapters.base_adapter import BaseAdapter
-from backend.core.config import settings
-from backend.models.api_responses import NIHGrant
+from adapters.base_adapter import BaseAdapter
+from core.config import settings
+from models.api_responses import NIHGrant
 
 
 class NIHReporterAdapter(BaseAdapter):

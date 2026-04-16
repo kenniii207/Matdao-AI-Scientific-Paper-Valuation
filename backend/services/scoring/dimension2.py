@@ -15,6 +15,7 @@ from typing import Optional
 from backend.models.api_responses import (
     OpenAlexWork,
     SemanticScholarPaper,
+    SerpApiScholarPaper,
     OSFRegistration,
 )
 
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 def score_dimension2(
     s2_paper: Optional[SemanticScholarPaper] = None,
     oa_work: Optional[OpenAlexWork] = None,
+    serpapi_paper: Optional[SerpApiScholarPaper] = None,
     preregistrations: Optional[list[OSFRegistration]] = None,
 ) -> tuple[float, str]:
     """Compute Dimension 2 raw score (1-5) from API data.
@@ -63,6 +65,20 @@ def score_dimension2(
         else:
             sub_scores.append(1.5)
         snippets["cited_by_count"] = cbc
+
+    if serpapi_paper and serpapi_paper.cited_by_count is not None:
+        serp_citations = serpapi_paper.cited_by_count
+        if serp_citations >= 500:
+            sub_scores.append(5.0)
+        elif serp_citations >= 100:
+            sub_scores.append(4.0)
+        elif serp_citations >= 20:
+            sub_scores.append(3.0)
+        elif serp_citations >= 5:
+            sub_scores.append(2.0)
+        else:
+            sub_scores.append(1.5)
+        snippets["google_scholar_cited_by_count"] = serp_citations
 
     # 3. Pre-registration
     if preregistrations is not None:

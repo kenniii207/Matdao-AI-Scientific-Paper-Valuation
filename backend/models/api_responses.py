@@ -37,6 +37,18 @@ class SemanticScholarPaper(BaseModel):
     raw_json: Optional[dict] = Field(default=None, exclude=True)
 
 
+# --- SerpAPI (Google Scholar) ---
+
+class SerpApiScholarPaper(BaseModel):
+    """Subset of SerpAPI google_scholar organic result relevant to scoring."""
+
+    title: Optional[str] = None
+    result_id: Optional[str] = None
+    cited_by_count: Optional[int] = None
+    publication_info_summary: Optional[str] = None
+    raw_json: Optional[dict] = Field(default=None, exclude=True)
+
+
 # --- Crossref ---
 
 class CrossrefWork(BaseModel):

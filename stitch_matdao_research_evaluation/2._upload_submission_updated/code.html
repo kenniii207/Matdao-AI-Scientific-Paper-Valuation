@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-surface-variant": "#bac9cc",
+                    "secondary-container": "#4a4949",
+                    "primary-fixed-dim": "#2ddbde",
+                    "on-tertiary-fixed-variant": "#004f58",
+                    "inverse-primary": "#00696b",
+                    "on-tertiary": "#00363d",
+                    "surface-container-low": "#1c1b1b",
+                    "surface-variant": "#353534",
+                    "on-primary-fixed-variant": "#004f51",
+                    "on-tertiary-fixed": "#001f24",
+                    "inverse-on-surface": "#313030",
+                    "on-primary-fixed": "#002020",
+                    "surface-container": "#201f1f",
+                    "on-tertiary-container": "#00626e",
+                    "surface": "#131313",
+                    "primary": "#97fdff",
+                    "background": "#131313",
+                    "surface-bright": "#3a3939",
+                    "on-secondary-fixed-variant": "#474646",
+                    "on-error-container": "#ffdad6",
+                    "error-container": "#93000a",
+                    "tertiary": "#c3f5ff",
+                    "on-surface": "#e5e2e1",
+                    "surface-container-lowest": "#0e0e0e",
+                    "on-background": "#e5e2e1",
+                    "on-primary": "#003738",
+                    "surface-dim": "#131313",
+                    "tertiary-fixed": "#9cf0ff",
+                    "primary-container": "#3fe6e8",
+                    "outline": "#849396",
+                    "tertiary-container": "#00e5ff",
+                    "on-primary-container": "#006365",
+                    "primary-fixed": "#5af8fb",
+                    "secondary": "#c8c6c5",
+                    "surface-container-high": "#2a2a2a",
+                    "on-secondary-container": "#bab8b7",
+                    "inverse-surface": "#e5e2e1",
+                    "on-secondary-fixed": "#1c1b1b",
+                    "on-error": "#690005",
+                    "error": "#ffb4ab",
+                    "surface-container-highest": "#353534",
+                    "surface-tint": "#2ddbde",
+                    "secondary-fixed": "#e5e2e1",
+                    "on-secondary": "#313030",
+                    "outline-variant": "#3b494c",
+                    "secondary-fixed-dim": "#c8c6c5",
+                    "tertiary-fixed-dim": "#00daf3"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "fontFamily": {
+                    "headline": ["Space Grotesk"],
+                    "body": ["Inter"],
+                    "label": ["Space Grotesk"]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      .glassmorphism {
+        background: rgba(42, 42, 42, 0.4);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+      }
+      .primary-gradient {
+        background: linear-gradient(135deg, #3FE6E8 0%, #97FDFF 100%);
+      }
+      .luminous-glow {
+        box-shadow: 0 0 40px rgba(151, 253, 255, 0.06);
+      }
+      .top-light-edge {
+        border-top: 1px solid rgba(151, 253, 255, 0.3);
+      }
+      .grid-motif {
+        background-image: radial-gradient(circle, rgba(229, 226, 225, 0.05) 1px, transparent 1px);
+        background-size: 24px 24px;
+      }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body selection:bg-primary selection:text-on-primary">
+<!-- TopNavBar Shared Component -->
+<nav class="fixed top-0 w-full z-50 bg-[#131313]/80 backdrop-blur-xl shadow-[0_0_40px_rgba(151,253,255,0.06)] flex justify-between items-center h-16 px-8 w-full">
+<div class="text-xl font-bold tracking-tighter text-[#97FDFF] font-headline">MatDAO</div>
+<div class="hidden md:flex items-center gap-8">
+<a class="font-['Space_Grotesk'] uppercase tracking-[0.1em] text-[0.75rem] text-slate-400 hover:text-[#97FDFF] transition-colors duration-300 active:scale-95 transition-transform" href="#">Intent</a>
+<a class="font-['Space_Grotesk'] uppercase tracking-[0.1em] text-[0.75rem] text-[#97FDFF] border-b-2 border-[#97FDFF] pb-1 active:scale-95 transition-transform" href="#">Submission</a>
+<a class="font-['Space_Grotesk'] uppercase tracking-[0.1em] text-[0.75rem] text-slate-400 hover:text-[#97FDFF] transition-colors duration-300 active:scale-95 transition-transform" href="#">Evaluation</a>
+<a class="font-['Space_Grotesk'] uppercase tracking-[0.1em] text-[0.75rem] text-slate-400 hover:text-[#97FDFF] transition-colors duration-300 active:scale-95 transition-transform" href="#">Results</a>
+<a class="font-['Space_Grotesk'] uppercase tracking-[0.1em] text-[0.75rem] text-slate-400 hover:text-[#97FDFF] transition-colors duration-300 active:scale-95 transition-transform" href="#">Upgrades</a>
+</div>
+<div class="flex items-center gap-6">
+<button class="text-slate-400 hover:text-[#97FDFF] transition-colors active:scale-95">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="text-slate-400 hover:text-[#97FDFF] transition-colors active:scale-95">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/30">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="close-up portrait of a tech professional in a dark studio with subtle cyan rim lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_auMnjqyPqsj3xEfkSH3qs4D78IHMVMZsBQn1jsyG4RgaBSIWVTnN7cx-HgWxGbE3jil8u2RKnL4tjKzC0L_si_Di8f3LKAD5OJ2mGsLSkh-th7OfPXvuLY88vjyluSL3ND314ETUHbFEh9EaL7J-WfJ6TU1xXQRMiZLpXo2VH935QKwuD9E8OuW7_Cb066TxJ6uduZI8_n2kX4DGrnvCInwZ31d_akI87DAh8GR1uqyiC3Gf4psGb3D0hjOSsR2j3uBG8dvQC969"/>
+</div>
+</div>
+</nav>
+<main class="min-h-screen pt-24 pb-12 px-6 grid-motif">
+<div class="max-w-4xl mx-auto">
+<!-- Step Indicator -->
+<div class="mb-12 flex items-center justify-between">
+<div>
+<span class="font-label text-[0.65rem] uppercase tracking-[0.2em] text-primary">Step 02 of 05</span>
+<h2 class="font-headline text-on-surface-variant font-medium tracking-wider text-xs uppercase mt-1">Submission Phase</h2>
+</div>
+<div class="flex gap-1">
+<div class="h-1 w-8 bg-primary/20"></div>
+<div class="h-1 w-8 bg-primary shadow-[0_0_8px_#97fdff]"></div>
+<div class="h-1 w-8 bg-surface-container-highest"></div>
+<div class="h-1 w-8 bg-surface-container-highest"></div>
+<div class="h-1 w-8 bg-surface-container-highest"></div>
+</div>
+</div>
+<!-- Header Section -->
+<header class="mb-10">
+<h1 class="font-headline text-4xl font-bold text-on-surface mb-3 tracking-tight">Upload your research</h1>
+<p class="text-on-surface-variant font-body text-lg max-w-2xl leading-relaxed">
+                    We will analyze your work automatically using our proprietary monolithic intelligence layer.
+                </p>
+</header>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+<!-- Main Upload Canvas -->
+<section class="lg:col-span-8">
+<div class="glassmorphism top-light-edge luminous-glow rounded-lg border border-outline-variant/10 p-12 flex flex-col items-center justify-center text-center group cursor-pointer hover:border-primary/30 transition-all duration-500">
+<div class="w-20 h-20 rounded-full bg-surface-container-high flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+<span class="material-symbols-outlined text-4xl text-primary" style="font-variation-settings: 'FILL' 0;">cloud_upload</span>
+</div>
+<h3 class="font-headline text-xl text-on-surface font-semibold mb-2">Drag &amp; Drop your paper here</h3>
+<p class="font-body text-on-surface-variant text-sm mb-8">PDF, DOCX, or LaTeX files supported. Max file size 50MB.</p>
+<button class="px-8 py-3 bg-surface-container-high border border-outline-variant/30 text-on-surface font-label text-xs uppercase tracking-widest rounded-sm hover:border-primary transition-colors active:scale-95">
+                            BROWSE LOCAL FILES
+                        </button>
+</div>
+<!-- Additional Links Section -->
+<div class="mt-8 bg-surface-container-low p-8 rounded-lg top-light-edge">
+<h4 class="font-headline text-sm uppercase tracking-widest text-on-surface mb-6">Paste additional research links</h4>
+<div class="flex flex-col gap-4">
+<div class="flex gap-3">
+<div class="flex-1 relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm">link</span>
+<input class="w-full bg-surface-container-lowest border-b-2 border-outline-variant/20 focus:border-primary transition-all duration-300 py-3 pl-10 pr-4 text-on-surface font-body text-sm outline-none" placeholder="https://arxiv.org/abs/..." type="text"/>
+</div>
+<button class="px-4 py-2 bg-surface-container-high text-primary hover:bg-surface-bright transition-colors active:scale-95">
+<span class="material-symbols-outlined">add</span>
+</button>
+</div>
+<button class="self-start text-xs font-label uppercase tracking-widest text-primary/70 hover:text-primary transition-colors mt-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">add_circle</span>
+                                ADD MORE LINK
+                            </button>
+</div>
+</div>
+</section>
+<!-- Sidebar Metadata & Actions -->
+<aside class="lg:col-span-4 space-y-6">
+<!-- Info Note Card -->
+<div class="bg-surface-container/60 p-6 rounded-lg border-l-2 border-primary">
+<div class="flex items-start gap-4">
+<span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">info</span>
+<p class="font-body text-xs text-on-surface-variant leading-relaxed">
+                                Submitting multiple sources allows the monolith to cross-reference data points for higher audit accuracy.
+                            </p>
+</div>
+</div>
+<!-- Requirements Visualizer -->
+<div class="bg-surface-container-low p-6 rounded-lg">
+<h5 class="font-label text-[0.65rem] uppercase tracking-widest text-on-surface-variant mb-4">Integrity Checklist</h5>
+<ul class="space-y-4">
+<li class="flex items-center gap-3 text-xs font-body text-on-surface/60">
+<span class="w-4 h-4 rounded-full border border-outline-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px]">check</span>
+</span>
+                                Metadata validation
+                            </li>
+<li class="flex items-center gap-3 text-xs font-body text-on-surface/60">
+<span class="w-4 h-4 rounded-full border border-outline-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px]">check</span>
+</span>
+                                Author signatures
+                            </li>
+<li class="flex items-center gap-3 text-xs font-body text-on-surface/60">
+<span class="w-4 h-4 rounded-full border border-outline-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px]">check</span>
+</span>
+                                Reference cross-check
+                            </li>
+</ul>
+</div>
+<!-- Decorative Data Motif -->
+<div class="relative h-32 rounded-lg overflow-hidden bg-surface-container-lowest">
+<img alt="Protocol Background" class="w-full h-full object-cover opacity-20 grayscale" data-alt="abstract technological circuit board pattern with neon cyan lighting and digital data stream overlays" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBI71mmnCRGr2wVOz0sLi7JZpi4XwHIdKlkpwRkcmLzFVb9LxsrSlkfeOKbi-AgwkT-VIOh76y2lh_7smOqhQOtaYg8aP8okaxA9deW2iOFmoxgg_C7xrhH8A9N4xZAI77jUwKfbpxQF6i6f6YW1zoyodix2IdHj8z57ABwhJ0j0AKRrgfCl_xK4p9kU-BQX64moWWaTAed_qnLiau84RcU1FIeAIkV4lmMUDqoG9GDIAycCETV1zrH51ruvSdq5Jc1klzDRpvJ8CfE"/>
+<div class="absolute inset-0 flex items-center justify-center">
+<div class="text-center">
+<div class="font-label text-[0.6rem] uppercase tracking-[0.3em] text-primary/40">Encryption Status</div>
+<div class="font-headline text-lg text-primary font-bold">SHA-256 ACTIVE</div>
+</div>
+</div>
+</div>
+<!-- Main CTA -->
+<div class="pt-4">
+<button class="w-full primary-gradient h-16 rounded-sm flex items-center justify-center gap-3 text-on-primary font-headline font-bold uppercase tracking-widest text-sm hover:brightness-110 active:scale-[0.98] transition-all shadow-[0_10px_20px_rgba(63,230,232,0.15)]">
+                            START EVALUATION
+                            <span class="material-symbols-outlined">bolt</span>
+</button>
+<p class="text-[0.6rem] font-label text-center mt-4 text-on-surface-variant uppercase tracking-widest opacity-50">
+                            Protocol Version 4.2.0 • Analytical Node 01
+                        </p>
+</div>
+</aside>
+</div>
+</div>
+</main>
+<!-- SideNavBar (Supressed for this focused submission task as per hierarchy) -->
+</body></html>

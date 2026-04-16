@@ -9,8 +9,12 @@ from backend.db.session import get_session
 from backend.db.models import ResearchPaper, ExtractionLayer
 from backend.api.adapters.grobid_adapter import GrobidAdapter
 from backend.api.adapters.glm_ocr_adapter import GLMOCRAdapter
+from backend.api.adapters.falcon_ocr_adapter import FalconOCRAdapter
 import fitz  # PyMuPDF
 import base64
+import io
+from PIL import Image
+import torch
 
 router = APIRouter()
 
@@ -94,8 +98,11 @@ async def upload_pdf(
     except Exception as e:
         text_data = f"Grobid failed: {str(e)}"
 
-    # 2. GLM-OCR Image Extraction (First page only for Layer 1 baseline)
+    # 2. GLM-OCR / Falcon-OCR Image Extraction (First page baseline)
     ocr_data = {}
+    falcon_text = ""
+    img_bytes = None
+    
     try:
         doc = fitz.open(stream=contents, filetype="pdf")
         if len(doc) > 0:
@@ -104,13 +111,23 @@ async def upload_pdf(
             img_bytes = pix.tobytes("png")
             img_b64 = base64.b64encode(img_bytes).decode("utf-8")
             
+            # GLM-OCR (Z.ai API)
             glm_res = await glm.parse_image(img_b64, prompt="Extract all text and key values from this scientific paper page.")
             ocr_data = glm_res
+            
+            # Falcon-OCR (Local GPU 300M) — Triggered if Grobid yield is low or GPU available
+            if torch.cuda.is_available() or len(text_data) < 500:
+                try:
+                    falcon = FalconOCRAdapter()
+                    pil_img = Image.open(io.BytesIO(img_bytes))
+                    falcon_text = await falcon.ocr(pil_img)
+                except Exception as ef:
+                    falcon_text = f"Falcon-OCR error: {str(ef)}"
         doc.close()
     except Exception as e:
         ocr_data = {"error": str(e)}
 
-    detected_doi = _extract_doi(text_data, ocr_data.get("text", ""))
+    detected_doi = _extract_doi(text_data, ocr_data.get("text", ""), falcon_text)
     if detected_doi and detected_doi != paper.doi:
         doi_owner = await session.scalar(
             select(ResearchPaper).where(ResearchPaper.doi == detected_doi)
@@ -122,8 +139,9 @@ async def upload_pdf(
     # Update DB records with real data
     layer.status = "completed"
     layer.processed_data = {
-        "grobid_tei": text_data[:1000] + "...", # truncate for DB storage safety in MVP
+        "grobid_tei": text_data[:1000] + "...", 
         "glm_ocr": ocr_data,
+        "falcon_ocr": falcon_text[:2000],
         "detected_doi": detected_doi,
     }
     session.add(layer)
@@ -133,9 +151,9 @@ async def upload_pdf(
         "status": "success",
         "mock_doi": paper.doi,
         "filename": file.filename,
-        "confidence_tier": "AUTOMATED_60",
-        "message": "File parsed successfully via Grobid and GLM-OCR.",
-        "preview_ocr": ocr_data.get("text", "")[:200],
+        "confidence_tier": "AUTOMATED_70", # Tier bumped due to multiple extraction layers
+        "message": "File parsed successfully via Grobid, Falcon-OCR, and GLM-OCR.",
+        "preview_ocr": (falcon_text or ocr_data.get("text", ""))[:200],
         "paper_id": str(paper.id),
         "deduplicated": False,
     }

@@ -1,15 +1,16 @@
-# Docker Compose for MatDAO local development.
+# Docker Compose for MatDAO Development (Phase 2)
 #
-# Services:
-#   - grobid:   Layer 1 CRF extraction (port 8070) — lightweight CPU-only ~478 MB
-#   - postgres: PostgreSQL 16 with pgvector (port 5432)
-#   - backend:  FastAPI application (port 8000)
+# Pipeline:
+#   - Layer 1 (CPU): Grobid CRF (Lightweight extraction)
+#   - Layer 1 (GPU fallback): Falcon-OCR 300M (Local inference)
+#   - Layer 1 (API fallback): GLM-OCR (Z.ai)
 #
-# NOTE: Grobid does NOT touch Postgres — only the backend does.
+# NOTE: To use Falcon-OCR locally with GPU, ensure you have NVIDIA Container Toolkit 
+# installed and use 'deploy: resources: reservations: devices: - driver: nvidia'
 
 services:
   grobid:
-    image: grobid/grobid:0.9.0-crf   # CRF-only, ~478 MB, CPU-only — fits Render 1 GB RAM
+    image: lfoppiano/grobid:latest-crf
     container_name: grobid
     ports:
       - "8070:8070"
@@ -18,10 +19,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 30s
     restart: unless-stopped
-    volumes:
-      - grobid-data:/opt/grobid   # Persist cache/models across container restarts
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -29,15 +27,14 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_DB: matdao_db
-      POSTGRES_USER: matdao
-      POSTGRES_PASSWORD: matdao_secret
+      - POSTGRES_DB=matdao
+      - POSTGRES_USER=matdao
+      - POSTGRES_PASSWORD=matdao_secret
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./backend/db/migrations/init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U matdao -d matdao_db"]
+      test: ["CMD-SHELL", "pg_isready -U matdao -d matdao"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,12 +47,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql+asyncpg://matdao:matdao_secret@postgres:5432/matdao_db}
-      - GROBID_URL=http://grobid:8070          # Internal service name — CRF-only extractor
+      - DATABASE_URL=postgresql+asyncpg://matdao:matdao_secret@postgres:5432/matdao
+      - GROBID_URL=http://grobid:8070
+      - ZAI_API_KEY=${ZAI_API_KEY:-}
       - OPENALEX_API_KEY=${OPENALEX_API_KEY:-}
       - SEMANTIC_SCHOLAR_API_KEY=${SEMANTIC_SCHOLAR_API_KEY:-}
-      - NIH_REPORTER_EMAIL=${NIH_REPORTER_EMAIL:-}
-      - CROSSREF_EMAIL=${CROSSREF_EMAIL:-}
       - ZHIPU_API_KEY=${ZHIPU_API_KEY:-}
       - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
     depends_on:
@@ -63,10 +59,15 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    # Uncomment below if you have a local GPU and want to test Falcon-OCR
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     restart: unless-stopped
-    volumes:
-      - ./uploads:/app/uploads   # Persist uploaded PDFs
 
 volumes:
   pgdata:
-  grobid-data:   # Named volume for Grobid cache/models (~5 GB storage budget on Render)

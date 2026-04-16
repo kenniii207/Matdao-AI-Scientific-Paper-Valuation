@@ -6,6 +6,7 @@ from backend.services.scoring.dimension2 import score_dimension2
 from backend.models.api_responses import (
     SemanticScholarPaper,
     OpenAlexWork,
+    SerpApiScholarPaper,
     OSFRegistration,
 )
 
@@ -34,3 +35,9 @@ class TestDimension2Scoring:
     def test_no_data_returns_neutral(self):
         score, snippet = score_dimension2()
         assert score == 3.0
+
+    def test_serpapi_citations_are_included(self):
+        serp = SerpApiScholarPaper(cited_by_count=120)
+        score, snippet = score_dimension2(serpapi_paper=serp)
+        assert score == 4.0
+        assert "google_scholar_cited_by_count" in snippet

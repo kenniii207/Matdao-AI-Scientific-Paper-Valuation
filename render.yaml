@@ -1,62 +1,58 @@
-# render.yaml — Render Infrastructure-as-Code for MatDAO
+# render.yaml — Render Infrastructure-as-Code (Phase 2)
 #
 # Services:
-#   1. matdao-backend  — FastAPI web service (public, Basic plan)
-#   2. matdao-grobid   — Grobid CRF private service (internal only, Basic plan)
-#
-# The Render Postgres database is created separately via the Render dashboard
-# and connected via DATABASE_URL (internal Render URL preferred).
+#   1. matdao-backend  — FastAPI (GPU enabled for Falcon-OCR)
+#   2. matdao-grobid   — Grobid CRF (Dedicated image)
+#   3. matdao-postgres — Managed PostgreSQL
 #
 # Deploy:  render blueprint apply
-# Docs:    https://render.com/docs/blueprint-spec
 
 services:
-  # ── 1. FastAPI Backend (public web service) ───────────────────────────────
+  # ── 1. FastAPI Backend (GPU enabled) ──────────────────────────────────
   - type: web
     name: matdao-backend
     runtime: docker
-    dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: starter          # 512 MB RAM, 0.1 CPU (Note: Use 'standard' for 2 GB / 1 CPU if needed)
-    region: singapore      # Adjust to your nearest region
+    dockerfilePath: Dockerfile
+    plan: standard         # Plan that supports GPU add-ons
+    gpu: true              # Triggers Falcon-OCR 300M local inference
+    region: singapore      # Recommend matching region for all services
     branch: main
     healthCheckPath: /health
     envVars:
-      # Render Internal Postgres URL — set this in the Render dashboard
-      # or link to your Render Postgres service. Internal URL avoids egress fees.
       - key: DATABASE_URL
-        sync: false        # Set manually in Render dashboard → Environment
-
-      # Grobid internal hostname — private service on Render shares the same
-      # private network. Use the internal hostname format: <service-name>:8070
+        fromDatabase:
+          name: matdao-postgres
+          property: connectionString
       - key: GROBID_URL
-        value: http://matdao-grobid:8070
-
+        fromService:
+          name: matdao-grobid
+          property: internalUrl
+      - key: ZAI_API_KEY
+        sync: false        # Required for GLM-OCR fallback
       - key: OPENALEX_API_KEY
         sync: false
       - key: SEMANTIC_SCHOLAR_API_KEY
-        sync: false
-      - key: NIH_REPORTER_EMAIL
-        sync: false
-      - key: CROSSREF_EMAIL
         sync: false
       - key: ZHIPU_API_KEY
         sync: false
       - key: SERPAPI_API_KEY
         sync: false
 
-  # ── 2. Grobid CRF-only (private internal service) ────────────────────────
-  # Private services are NOT exposed to the internet — only reachable by other
-  # Render services in the same account via internal DNS.
-  - type: pserv             # "pserv" = Render Private Service
+  # ── 2. Grobid (Separate Private Web Service) ──────────────────────────
+  - type: web
     name: matdao-grobid
     runtime: image
     image:
-      url: docker.io/grobid/grobid:0.9.0-crf   # ~478 MB, CPU-only, CRF extractor
-    plan: starter             # 512 MB RAM (Standard is recommended for 2 GB if starter is too tight)
-    region: singapore       # Must match backend region for low-latency internal comms
-    disk:
-      name: grobid-data
-      mountPath: /opt/grobid
-      sizeGB: 5             # Render 5 GB storage limit — sufficient for CRF models/cache
-    # No envVars needed — Grobid never connects to Postgres
+      url: lfoppiano/grobid:latest-crf   # Lightweight CRF-only
+    plan: starter          # 512MB RAM minimum
+    region: singapore
+    healthCheckPath: /api/isalive
+
+databases:
+  # ── 3. PostgreSQL Database ──────────────────────────────────────────
+  - name: matdao-postgres
+    databaseName: matdao
+    user: matdao
+    plan: basic-1gb        # Multi-region failover and 1GB RAM
+    region: singapore

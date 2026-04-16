@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>MatDAO - Evaluation Progress</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Inter:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glow-cyan {
+            box-shadow: 0 0 15px rgba(151, 253, 255, 0.4);
+        }
+        .glass-panel {
+            background: rgba(42, 42, 42, 0.8);
+            backdrop-filter: blur(20px);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface-variant": "#bac9cc",
+                        "secondary-container": "#4a4949",
+                        "primary-fixed-dim": "#2ddbde",
+                        "on-tertiary-fixed-variant": "#004f58",
+                        "inverse-primary": "#00696b",
+                        "on-tertiary": "#00363d",
+                        "surface-container-low": "#1c1b1b",
+                        "surface-variant": "#353534",
+                        "on-primary-fixed-variant": "#004f51",
+                        "on-tertiary-fixed": "#001f24",
+                        "inverse-on-surface": "#313030",
+                        "on-primary-fixed": "#002020",
+                        "surface-container": "#201f1f",
+                        "on-tertiary-container": "#00626e",
+                        "surface": "#131313",
+                        "primary": "#97fdff",
+                        "background": "#131313",
+                        "surface-bright": "#3a3939",
+                        "on-secondary-fixed-variant": "#474646",
+                        "on-error-container": "#ffdad6",
+                        "error-container": "#93000a",
+                        "tertiary": "#c3f5ff",
+                        "on-surface": "#e5e2e1",
+                        "on-background": "#e5e2e1",
+                        "on-primary": "#003738",
+                        "surface-dim": "#131313",
+                        "tertiary-fixed": "#9cf0ff",
+                        "primary-container": "#3fe6e8",
+                        "outline": "#849396",
+                        "tertiary-container": "#00e5ff",
+                        "on-primary-container": "#006365",
+                        "primary-fixed": "#5af8fb",
+                        "secondary": "#c8c6c5",
+                        "surface-container-high": "#2a2a2a",
+                        "on-secondary-container": "#bab8b7",
+                        "inverse-surface": "#e5e2e1",
+                        "on-secondary-fixed": "#1c1b1b",
+                        "on-error": "#690005",
+                        "error": "#ffb4ab",
+                        "surface-container-highest": "#353534",
+                        "surface-tint": "#2ddbde",
+                        "secondary-fixed": "#e5e2e1",
+                        "on-secondary": "#313030",
+                        "outline-variant": "#3b494c",
+                        "secondary-fixed-dim": "#c8c6c5",
+                        "tertiary-fixed-dim": "#00daf3"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "fontFamily": {
+                        "headline": ["Space Grotesk"],
+                        "body": ["Inter"],
+                        "label": ["Space Grotesk"]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body selection:bg-primary/30 min-h-screen overflow-x-hidden">
+<!-- TopNavBar Component -->
+<header class="fixed top-0 w-full z-50 bg-[#131313]/80 backdrop-blur-xl shadow-[0_0_40px_rgba(151,253,255,0.06)]">
+<nav class="flex justify-between items-center h-16 px-8 max-w-[1440px] mx-auto w-full">
+<div class="text-xl font-bold tracking-tighter text-[#97FDFF] font-headline">MatDAO</div>
+<div class="hidden md:flex gap-8 font-['Space_Grotesk'] uppercase tracking-[0.1em] text-[0.75rem]">
+<a class="text-slate-400 hover:text-[#97FDFF] transition-colors duration-300" href="#">Intent</a>
+<a class="text-slate-400 hover:text-[#97FDFF] transition-colors duration-300" href="#">Submission</a>
+<a class="text-[#97FDFF] border-b-2 border-[#97FDFF] pb-1 hover:text-[#97FDFF] transition-colors duration-300" href="#">Evaluation</a>
+<a class="text-slate-400 hover:text-[#97FDFF] transition-colors duration-300" href="#">Results</a>
+<a class="text-slate-400 hover:text-[#97FDFF] transition-colors duration-300" href="#">Upgrades</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-slate-400 hover:text-primary active:scale-95 transition-all">notifications</button>
+<button class="material-symbols-outlined text-slate-400 hover:text-primary active:scale-95 transition-all">settings</button>
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant/20 overflow-hidden">
+<img alt="User Profile" data-alt="Cyberpunk style minimalist profile avatar with cyan glowing accents in a dark circular frame" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxZE5ZOStzwL2VeRQ8i0X0KWDQNACJxvp1t4kXySpnTlivao7axQJ0hUT1K-mrnn92HLTAK-W85eOml2W-Njp52no2s6o5HqCyGulPNmvLs1kexz6WPS2h1CBXf8m4_BIF48EADNCY0rcMtD01--bP-Eu4GKPnSnZSyLNAA-2HGhyM5M19ICPngnsxPGZgUIIYa03hI8PO7kNFGCWoFzvF8sAh7looThj72EMumFd74VO5kl4C_N1psOnBkwSoTZ1-MsO18d8ckWep"/>
+</div>
+</div>
+</nav>
+</header>
+<main class="pt-32 pb-20 px-6 max-w-5xl mx-auto flex flex-col items-center">
+<!-- Step Indicator -->
+<div class="mb-12 flex items-center justify-center gap-4">
+<div class="flex items-center gap-2">
+<span class="font-headline text-[0.7rem] uppercase tracking-widest text-outline">Protocol Phase</span>
+<div class="flex gap-1.5">
+<div class="h-1 w-8 bg-primary"></div>
+<div class="h-1 w-8 bg-primary"></div>
+<div class="h-1 w-8 bg-primary glow-cyan"></div>
+<div class="h-1 w-8 bg-surface-variant"></div>
+<div class="h-1 w-8 bg-surface-variant"></div>
+</div>
+<span class="font-headline text-[0.75rem] font-bold text-primary ml-2">Step 3 of 5</span>
+</div>
+</div>
+<!-- Header Section -->
+<div class="text-center mb-16 max-w-2xl">
+<h1 class="font-headline text-4xl md:text-5xl font-bold tracking-tight text-on-surface mb-6">
+                Evaluation in progress...
+            </h1>
+<p class="text-on-surface-variant text-lg leading-relaxed">
+                Our analytical monolith is parsing your submission against the global consensus protocols. This typically takes 45-60 seconds.
+            </p>
+</div>
+<!-- Progress Grid (Analytical Cards) -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 w-full">
+<!-- Card 1: Completed -->
+<div class="surface-container p-6 rounded border-t border-primary/30 glass-panel flex flex-col gap-4 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-[1px] bg-primary/20"></div>
+<div class="flex justify-between items-start">
+<span class="font-headline text-[0.65rem] uppercase tracking-[0.2em] text-primary">Status: Verified</span>
+<span class="material-symbols-outlined text-primary" data-weight="fill">check_circle</span>
+</div>
+<div>
+<h3 class="font-headline text-xl font-bold text-on-surface">Check Completeness</h3>
+<p class="text-on-surface-variant text-sm mt-2">Data integrity and structural validation passed.</p>
+</div>
+</div>
+<!-- Card 2: Active -->
+<div class="bg-surface-container-high p-6 rounded border-t border-primary glass-panel flex flex-col gap-4 relative overflow-hidden">
+<div class="absolute top-0 left-0 w-full h-[1px] bg-primary/40"></div>
+<div class="flex justify-between items-start">
+<span class="font-headline text-[0.65rem] uppercase tracking-[0.2em] text-primary animate-pulse">Status: Analyzing</span>
+<span class="material-symbols-outlined text-primary animate-spin">settings</span>
+</div>
+<div>
+<h3 class="font-headline text-xl font-bold text-on-surface">Research Quality</h3>
+<p class="text-on-surface-variant text-sm mt-2">Running heuristic deep-scans on citation veracity.</p>
+</div>
+</div>
+<!-- Card 3: Waiting -->
+<div class="surface-container p-6 rounded border-t border-outline-variant/20 glass-panel opacity-60 flex flex-col gap-4 relative overflow-hidden">
+<div class="flex justify-between items-start">
+<span class="font-headline text-[0.65rem] uppercase tracking-[0.2em] text-outline">Status: Waiting</span>
+<span class="material-symbols-outlined text-outline">queue</span>
+</div>
+<div>
+<h3 class="font-headline text-xl font-bold text-on-surface">Score Output</h3>
+<p class="text-on-surface-variant text-sm mt-2">Pending final synthesis from processing layers.</p>
+</div>
+</div>
+</div>
+<!-- Global Progress Bar Section -->
+<div class="surface-container-low p-10 rounded-lg relative overflow-hidden border border-outline-variant/10 w-full">
+<!-- Grid Background Motif -->
+<div class="absolute inset-0 opacity-[0.03]" style="background-image: radial-gradient(#97fdff 0.5px, transparent 0.5px); background-size: 24px 24px;"></div>
+<div class="relative z-10">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+<div class="flex flex-col gap-1">
+<span class="font-headline text-[0.7rem] uppercase tracking-[0.25em] text-primary font-bold">Protocol Execution</span>
+<h2 class="font-headline text-2xl font-bold tracking-tight">RUNNING PARALLEL VALIDATION ON 4 DISTRIBUTED NODES</h2>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline text-5xl font-bold text-primary">64</span>
+<span class="font-headline text-xl text-primary/60">%</span>
+</div>
+</div>
+<!-- Glow-Track Progress Bar -->
+<div class="h-4 w-full bg-surface-container-highest rounded-full overflow-hidden flex gap-[2px]">
+<div class="h-full bg-primary glow-cyan" style="width: 64%"></div>
+<div class="h-full bg-surface-variant flex-1"></div>
+</div>
+<div class="mt-8 flex items-center justify-between">
+<div class="flex gap-8">
+<div class="flex flex-col">
+<span class="font-headline text-[0.6rem] uppercase tracking-widest text-outline">Elapsed Time</span>
+<span class="font-headline text-xl text-on-surface font-mono">00:34s</span>
+</div>
+<div class="flex flex-col">
+<span class="font-headline text-[0.6rem] uppercase tracking-widest text-outline">Estimated Remaining</span>
+<span class="font-headline text-xl text-on-surface font-mono">00:18s</span>
+</div>
+</div>
+<button class="bg-surface-variant text-outline cursor-not-allowed px-10 py-3 rounded-sm font-headline text-[0.75rem] font-bold uppercase tracking-[0.15em] transition-all flex items-center gap-3" disabled="">
+<span class="w-2 h-2 rounded-full bg-outline animate-pulse"></span>
+                        IN PROGRESS...
+                    </button>
+</div>
+</div>
+</div>
+<!-- Decorative Tech Details -->
+<div class="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8 opacity-40 w-full border-t border-outline-variant/10 pt-12">
+<div class="flex flex-col gap-1">
+<span class="font-headline text-[0.6rem] uppercase tracking-tighter text-outline">Node Cluster</span>
+<span class="font-headline text-xs text-on-surface">ALPHA-CENTAURI-09</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-headline text-[0.6rem] uppercase tracking-tighter text-outline">Encryption</span>
+<span class="font-headline text-xs text-on-surface">AES-4096-QUANTUM</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-headline text-[0.6rem] uppercase tracking-tighter text-outline">Latency</span>
+<span class="font-headline text-xs text-on-surface">12.4ms (GLOBAL)</span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-headline text-[0.6rem] uppercase tracking-tighter text-outline">Consensus</span>
+<span class="font-headline text-xs text-on-surface">PROOF-OF-INSIGHT</span>
+</div>
+</div>
+</main>
+<!-- Bottom Nav for Mobile -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full bg-surface-container-low border-t border-outline-variant/10 flex justify-around items-center h-16 z-50">
+<button class="flex flex-col items-center gap-1 text-primary">
+<span class="material-symbols-outlined">analytics</span>
+<span class="text-[0.6rem] font-headline uppercase">Eval</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-outline">
+<span class="material-symbols-outlined">hub</span>
+<span class="text-[0.6rem] font-headline uppercase">Nodes</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-outline">
+<span class="material-symbols-outlined">history</span>
+<span class="text-[0.6rem] font-headline uppercase">History</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-outline">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[0.6rem] font-headline uppercase">Config</span>
+</button>
+</nav>
+</body></html>

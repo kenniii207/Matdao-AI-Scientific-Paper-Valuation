@@ -27,7 +27,7 @@ class GLMOCRAdapter:
     ):
         self.api_url = api_url
         self.use_maas = use_maas
-        self.api_key = settings.zhipu_api_key
+        self.api_key = settings.zhipu_api_key or settings.zai_api_key
         self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:
