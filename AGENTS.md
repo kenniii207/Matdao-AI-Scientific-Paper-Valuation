@@ -19,7 +19,7 @@ Dim9 (Governance) = 1 → Total Score = 0. No exceptions. No override.
 - `frontend/src/store/` — Zustand state stores.
 
 ## API Providers
-OpenAlex, Semantic Scholar, Crossref (retraction), NIH RePORTER, OSF, ClinicalTrials.gov, Grobid, GLM-OCR.
+OpenAlex, Semantic Scholar, Crossref (retraction), NIH RePORTER, OSF, ClinicalTrials.gov, Falcon-OCR, GLM-OCR.
 
 ## Workflow
 1. Search existing patterns before creating new code

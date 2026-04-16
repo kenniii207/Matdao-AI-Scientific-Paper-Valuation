@@ -10,9 +10,9 @@ MatDAO evaluates scientific research for investment using a **4-layer data extra
 
 | Layer | Strategy | Output |
 |-------|----------|--------|
-| **1. Neural Extraction** | Grobid + GLM-OCR | DOIs, ORCIDs, metadata, funding statements |
-| **2. API Enrichment** | OpenAlex, Semantic Scholar, Crossref, NIH | Citation metrics, retraction status, funding verification |
-| **3. Structured Intake** | JSON Schema + RJSF | Pre-filled scoring form for human review |
+| **1. Neural Extraction** | Falcon-OCR (local) + GLM-OCR | Text extraction, table parsing, DOI discovery |
+| **2. API Enrichment** | OpenAlex, Semantic Scholar, Crossref | Citation metrics, retraction status, funding verification |
+| **3. Autonomous Eval** | LLM Synthesis (GLM-4) | 9-dimension scoring, rationale, audit snippets |
 | **4. Expert Audit** | Human-in-the-loop | Final investment grading |
 
 ### Integrity Gate (Dimension 9)
@@ -45,10 +45,11 @@ npm install
 npm run dev
 ```
 
-### Docker (Grobid + PostgreSQL)
+### Infrastructure (Render Blueprint)
 
 ```bash
-docker-compose up -d
+# Deploys backend + postgres
+render blueprint apply
 ```
 
 ### Run Tests
@@ -63,8 +64,9 @@ PYTHONPATH=.. python -m pytest tests/ -v
 - **Backend**: FastAPI, Pydantic v2, SQLAlchemy 2.0 (async)
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Zustand
 - **Database**: PostgreSQL 16 + pgvector
-- **OCR**: Grobid (Docker) + GLM-OCR (0.9B multimodal model)
-- **APIs**: OpenAlex, Semantic Scholar, Crossref, NIH RePORTER, OSF, ClinicalTrials.gov
+- **OCR**: Falcon-OCR (300M local inference) + GLM-OCR (API fallback)
+- **Evaluation**: GLM-4 (Scientific synthesis & 9-dimension scoring)
+- **APIs**: OpenAlex, Semantic Scholar, Crossref (retraction), NIH RePORTER, OSF, ClinicalTrials.gov, Falcon-OCR, GLM-OCR.
 
 ## License
 
