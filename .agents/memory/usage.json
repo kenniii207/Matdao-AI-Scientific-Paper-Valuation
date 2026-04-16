@@ -4,10 +4,10 @@
     {
       "id": "09a60f68-2c59-4505-a0ec-c46f69c66258",
       "date": "2026-04-16",
-      "estimated_tokens": 15000,
-      "mode": "caveman-lite",
+      "estimated_tokens": 45000,
+      "mode": "caveman-main",
       "phase": 2
     }
   ],
-  "total_estimated_tokens": 15000
+  "total_estimated_tokens": 45000
 }
