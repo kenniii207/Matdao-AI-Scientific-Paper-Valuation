@@ -133,7 +133,7 @@ export default function PaperAuditPage() {
                           <span className="text-[#97fdff]/40">verified_source</span>
                         </h4>
                         <p className="text-xs text-[#b8b8b8] italic line-clamp-3 hover:line-clamp-none transition-all cursor-zoom-in">
-                          "{dim.origin_snippet}"
+                          &quot;{dim.origin_snippet}&quot;
                         </p>
                       </div>
                     )}
