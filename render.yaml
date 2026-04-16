@@ -22,8 +22,10 @@ services:
         sync: false
       - key: ZHIPU_API_KEY
         sync: false
-    gpu: true   # Enable for Falcon-OCR
-    disk: 5GB   # for HF cache
+    disk:
+      name: falcon-model-cache
+      mountPath: /root/.cache/huggingface
+      sizeGB: 10
 
 databases:
   - name: matdao-postgres

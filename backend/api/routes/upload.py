@@ -3,6 +3,7 @@ import re
 import io
 import base64
 import logging
+import json
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from typing import Dict, Any
 from pathlib import Path
@@ -86,34 +87,32 @@ async def upload_pdf(
     await session.commit()
 
     # Extraction Logic: Falcon-OCR -> GLM-OCR (API Fallback)
-    falcon_text = ""
-    glm_text = ""
+    final_text = ""
     extraction_source = "falcon-ocr"
 
     try:
         doc = fitz.open(stream=contents, filetype="pdf")
         if len(doc) > 0:
-            # Extract first page as preview/metadata source
             page = doc[0]
             pix = page.get_pixmap()
             img_bytes = pix.tobytes("png")
             pil_img = Image.open(io.BytesIO(img_bytes))
 
-            # 1. Primary: Falcon-OCR (High confidence local model)
+            # 1. Primary: Falcon-OCR
             try:
                 falcon = FalconOCRAdapter()
-                falcon_text = await falcon.ocr(pil_img)
+                final_text = await falcon.ocr(pil_img)
             except Exception as ef:
                 logger.error(f"Falcon-OCR failed: {ef}")
-                falcon_text = ""
+                final_text = ""
 
-            # 2. Fallback: GLM-OCR API (If Falcon failed or light usage is preferred)
-            if not falcon_text or len(falcon_text) < 100:
+            # 2. Fallback: GLM-OCR API
+            if not final_text or len(final_text) < 100:
                 logger.info("Falcon yield low. Falling back to GLM-OCR API.")
                 glm = GLMOCRAdapter()
                 img_b64 = base64.b64encode(img_bytes).decode("utf-8")
                 glm_res = await glm.parse_image(img_b64)
-                glm_text = glm_res.get("text", "")
+                final_text = glm_res.get("text", "")
                 extraction_source = "glm-ocr-fallback"
         
         doc.close()
@@ -121,31 +120,92 @@ async def upload_pdf(
         logger.error(f"PDF Processing failed: {e}")
         raise HTTPException(status_code=500, detail=f"Extraction failed: {str(e)}")
 
-    final_text = falcon_text or glm_text
+    # 3. DOI Extraction and Metadata Enrichment
     detected_doi = _extract_doi(final_text) or mock_doi
-
-    # Update paper with detected DOI
     paper.doi = detected_doi
+    
+    # Enrich via APIs if a real DOI was found
+    enriched_data = {}
+    if not detected_doi.startswith("10.matdao/"):
+        from backend.api.adapters.openalex_adapter import OpenAlexAdapter
+        from backend.api.adapters.semantic_scholar_adapter import SemanticScholarAdapter
+        
+        oa = OpenAlexAdapter()
+        s2 = SemanticScholarAdapter()
+        try:
+            enriched_data["openalex"] = await oa.get_work(doi=detected_doi)
+            enriched_data["semantic_scholar"] = await s2.get_paper(doi=detected_doi)
+        except Exception as ee:
+            logger.warning(f"Enrichment failed for {detected_doi}: {ee}")
+        finally:
+            await oa.close()
+            await s2.close()
+
+    # 4. LLM Evaluation
+    from backend.services.evaluation import ScientificEvaluator
+    evaluator = ScientificEvaluator()
+    eval_results = await evaluator.evaluate_content(final_text, enriched_data)
+
+    # 5. Store Results
     layer.status = "completed"
     layer.source = extraction_source
     layer.processed_data = {
         "text_content": final_text[:5000],
-        "falcon_used": bool(falcon_text),
-        "glm_used": bool(glm_text),
-        "detected_doi": detected_doi
+        "eval_results": eval_results,
+        "enriched_data": enriched_data
     }
+
+    # Store in ScoringResultDB
+    from backend.db.models import ScoringResultDB
+    from backend.services.scoring.engine import compute_score
+    
+    raw_scores = {}
+    origin_snippets = {}
+    if "scores" in eval_results:
+        for dim_id, data in eval_results["scores"].items():
+            raw_scores[int(dim_id)] = data["score"]
+            origin_snippets[int(dim_id)] = json.dumps({
+                "rationale": data.get("rationale"),
+                "snippet": data.get("origin_snippet")
+            })
+
+    scoring_result = compute_score(
+        doi=detected_doi,
+        raw_scores=raw_scores,
+        origin_snippets=origin_snippets,
+        automated_flags={i: True for i in range(1, 10)}
+    )
+
+    scoring_db = ScoringResultDB(
+        paper_id=paper.id,
+        version=1,
+        total_score=scoring_result.total_score,
+        grade=scoring_result.grade.value,
+        integrity_gate_triggered=scoring_result.integrity_gate_triggered,
+        origin_snippets={str(k): v for k, v in origin_snippets.items()},
+        dim1_score=raw_scores.get(1),
+        dim2_score=raw_scores.get(2),
+        dim3_score=raw_scores.get(3),
+        dim4_score=raw_scores.get(4),
+        dim5_score=raw_scores.get(5),
+        dim6_score=raw_scores.get(6),
+        dim7_score=raw_scores.get(7),
+        dim8_score=raw_scores.get(8),
+        dim9_score=raw_scores.get(9),
+        scored_by="llm-eval-v1"
+    )
     
     session.add(paper)
     session.add(layer)
+    session.add(scoring_db)
     await session.commit()
 
     return {
         "status": "success",
         "doi": paper.doi,
         "filename": file.filename,
-        "confidence_tier": "FALCON_300M" if falcon_text else "GLM_API",
-        "message": f"Extraction complete via {extraction_source}",
-        "preview": final_text[:300],
-        "paper_id": str(paper.id),
-        "deduplicated": False
+        "score": scoring_db.total_score,
+        "grade": scoring_db.grade,
+        "eval_summary": eval_results.get("executive_summary"),
+        "paper_id": str(paper.id)
     }

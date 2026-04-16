@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse
 
 from backend.core.config import settings
 from backend.core.exceptions import MatDAOBaseError
-from backend.api.adapters.grobid_adapter import GrobidAdapter
 from backend.api.routes import papers, scoring, upload
 from backend.db.session import engine
 from backend.db.models import Base
@@ -54,13 +53,3 @@ app.include_router(upload.router, prefix="/api", tags=["upload"])
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "version": "0.1.0"}
-
-
-@app.get("/health/grobid")
-async def grobid_health_check():
-    adapter = GrobidAdapter()
-    try:
-        is_alive = await adapter.health_check()
-        return {"status": "ok" if is_alive else "degraded", "grobid_alive": is_alive}
-    finally:
-        await adapter.close()
