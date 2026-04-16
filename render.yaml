@@ -18,6 +18,18 @@ services:
         sync: false
       - key: SERPAPI_API_KEY
         sync: false
+      - key: ENABLE_EXTERNAL_API_CACHE
+        value: "true"
+      - key: ENABLE_CURATED_CACHE
+        value: "true"
+      - key: ENABLE_LOCAL_RERANKER
+        value: "false"
+      - key: ENABLE_LOCAL_PREFILTER
+        value: "true"
+      - key: LOCAL_MODEL_DEVICE
+        value: "cpu"
+      - key: LOCAL_MODEL_CACHE_DIR
+        value: "/root/.cache/huggingface"
     disk:
       name: falcon-model-cache
       mountPath: /root/.cache/huggingface

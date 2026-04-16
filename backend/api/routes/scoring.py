@@ -24,7 +24,7 @@ def _derive_frontend_insights(
     eval_results: dict | None,
 ) -> tuple[str, list[str], list[str]]:
     if eval_results:
-        insight = str(eval_results.get("insight") or eval_results.get("executive_summary") or "").strip()
+        insight = str(eval_results.get("insight") or "").strip()
         investor_fit = eval_results.get("investor_fit")
         warnings = eval_results.get("warnings")
         if isinstance(investor_fit, list):
@@ -70,6 +70,75 @@ def _derive_frontend_insights(
     if not warnings:
         warnings.append("No critical red flags detected from current automated analysis")
     return insight, investor_fit, warnings
+
+
+def _derive_executive_summary(
+    eval_results: dict | None,
+    insight: str,
+    dimensions: list[dict],
+    integrity_gate_triggered: bool,
+    total_score: float,
+    grade: str,
+) -> str:
+    candidate = str((eval_results or {}).get("executive_summary") or "").strip()
+    normalized_candidate = " ".join(candidate.lower().split())
+    normalized_insight = " ".join((insight or "").lower().split())
+    if candidate and normalized_candidate != normalized_insight:
+        return candidate
+
+    by_id = {int(d["dimension_id"]): float(d["raw_score"]) for d in dimensions}
+    rigor = by_id.get(2, 3.0)
+    market = by_id.get(3, 3.0)
+    feasibility = by_id.get(1, 3.0)
+    ethics = by_id.get(8, 3.0)
+
+    if integrity_gate_triggered:
+        return (
+            "Automated diligence detected governance/compliance risk signals; "
+            "the integrity gate forced total score to 0 pending manual review."
+        )
+
+    strengths: list[str] = []
+    watch_items: list[str] = []
+    if rigor >= 4.0:
+        strengths.append("strong scientific rigor")
+    if feasibility >= 3.5:
+        strengths.append("reasonable execution feasibility")
+    if market >= 3.5:
+        strengths.append("credible commercialization signal")
+    if market < 3.0:
+        watch_items.append("limited near-term commercialization evidence")
+    if ethics < 3.0:
+        watch_items.append("elevated risk/ethics uncertainty")
+
+    headline = f"Overall score {round(total_score)} ({grade}) with "
+    if strengths:
+        headline += ", ".join(strengths[:2])
+    else:
+        headline += "mixed strength across core dimensions"
+    if watch_items:
+        headline += "; key watch items: " + ", ".join(watch_items[:2])
+    return headline + "."
+
+
+def _derive_investment_recommendation(
+    eval_results: dict | None,
+    integrity_gate_triggered: bool,
+    total_score: float,
+    grade: str,
+) -> str:
+    candidate = str((eval_results or {}).get("investment_recommendation") or "").strip()
+    if candidate:
+        return candidate
+    if integrity_gate_triggered:
+        return "Reject (Integrity Gate Triggered)"
+    if total_score >= 85:
+        return "Tier A - High Priority Diligence"
+    if total_score >= 75:
+        return "Tier B - Targeted Validation"
+    if total_score >= 65:
+        return "Tier C - Conditional Monitoring"
+    return f"Tier D - Defer ({grade})"
 
 
 @router.post("/evaluate/{doi:path}")
@@ -209,15 +278,28 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
         }
 
     from backend.models.scoring import DIMENSION_NAMES
-    layer = await session.scalar(
-        select(ExtractionLayer)
-        .where(ExtractionLayer.paper_id == paper.id)
-        .order_by(ExtractionLayer.created_at.desc())
-        .limit(1)
+    layers = (
+        await session.scalars(
+            select(ExtractionLayer)
+            .where(ExtractionLayer.paper_id == paper.id)
+            .order_by(ExtractionLayer.created_at.desc())
+            .limit(12)
+        )
+    ).all()
+    layer = layers[0] if layers else None
+    eval_layer = next(
+        (
+            candidate
+            for candidate in layers
+            if isinstance(candidate.processed_data, dict)
+            and isinstance(candidate.processed_data.get("eval_results"), dict)
+        ),
+        None,
     )
+    active_layer = eval_layer or layer
     eval_results = {}
-    if layer is not None and isinstance(layer.processed_data, dict):
-        maybe_eval = layer.processed_data.get("eval_results")
+    if active_layer is not None and isinstance(active_layer.processed_data, dict):
+        maybe_eval = active_layer.processed_data.get("eval_results")
         if isinstance(maybe_eval, dict):
             eval_results = maybe_eval
     
@@ -253,10 +335,20 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
         integrity_gate_triggered=bool(row.integrity_gate_triggered),
         eval_results=eval_results,
     )
-    executive_summary = str(eval_results.get("executive_summary") or insight).strip()
-    investment_recommendation = str(
-        eval_results.get("investment_recommendation") or f"Grade {row.grade}"
-    ).strip()
+    executive_summary = _derive_executive_summary(
+        eval_results=eval_results,
+        insight=insight,
+        dimensions=dimensions,
+        integrity_gate_triggered=bool(row.integrity_gate_triggered),
+        total_score=float(row.total_score or 0.0),
+        grade=str(row.grade or "F"),
+    )
+    investment_recommendation = _derive_investment_recommendation(
+        eval_results=eval_results,
+        integrity_gate_triggered=bool(row.integrity_gate_triggered),
+        total_score=float(row.total_score or 0.0),
+        grade=str(row.grade or "F"),
+    )
 
     return {
         "paper_id": str(paper.id),

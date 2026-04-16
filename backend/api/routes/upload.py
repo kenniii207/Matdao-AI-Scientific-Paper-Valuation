@@ -41,6 +41,76 @@ def _extract_doi(*text_candidates: str) -> str | None:
     return None
 
 
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
+def _assess_low_confidence(
+    eval_results: Dict[str, Any],
+    enriched_data: Dict[str, Any],
+    raw_scores: dict[int, float],
+) -> dict[str, Any]:
+    quality_signals = eval_results.get("_quality_signals", {}) if isinstance(eval_results, dict) else {}
+    quality_signals = quality_signals if isinstance(quality_signals, dict) else {}
+    source_errors = enriched_data.get("source_errors", {}) if isinstance(enriched_data, dict) else {}
+    source_errors = source_errors if isinstance(source_errors, dict) else {}
+
+    reasons: list[str] = []
+    confidence_penalty = 0.0
+
+    if quality_signals.get("pipeline_timed_out"):
+        reasons.append("pipeline_timeout")
+        confidence_penalty += 0.45
+    if quality_signals.get("insufficient_evidence"):
+        reasons.append("insufficient_evidence")
+        confidence_penalty += 0.35
+    if quality_signals.get("generic_output_detected"):
+        reasons.append("generic_output")
+        confidence_penalty += 0.15
+    if eval_results.get("error"):
+        reasons.append("llm_error")
+        confidence_penalty += 0.35
+
+    schema_repair_count = int(_safe_float(quality_signals.get("schema_repair_count"), 0.0))
+    if schema_repair_count >= 4:
+        reasons.append("heavy_schema_repair")
+        confidence_penalty += min(0.25, schema_repair_count * 0.03)
+
+    snippet_coverage = _safe_float(quality_signals.get("snippet_coverage_ratio"), 1.0)
+    if snippet_coverage < 0.5:
+        reasons.append("low_snippet_coverage")
+        confidence_penalty += 0.2
+
+    source_error_count = len(source_errors)
+    if source_error_count >= 2:
+        reasons.append("multiple_source_errors")
+        confidence_penalty += min(0.2, source_error_count * 0.05)
+
+    if len(raw_scores) < 7:
+        reasons.append("sparse_dimension_coverage")
+        confidence_penalty += 0.1
+
+    confidence_score = max(0.0, min(1.0, round(1.0 - confidence_penalty, 4)))
+    high_risk_flags = {"pipeline_timeout", "insufficient_evidence", "llm_error"}
+    needs_review = bool(
+        reasons
+        and (
+            confidence_score < 0.7
+            or bool(high_risk_flags.intersection(reasons))
+            or len(set(reasons)) >= 2
+        )
+    )
+
+    return {
+        "needs_review": needs_review,
+        "confidence_score": confidence_score,
+        "reasons": sorted(set(reasons)),
+    }
+
+
 async def _evaluate_and_score(paper_id: str) -> None:
     """Background evaluation job for a paper already extracted into DB."""
     from backend.db.models import ScoringResultDB
@@ -173,6 +243,23 @@ async def _evaluate_and_score(paper_id: str) -> None:
                     scored_by="llm-timeout-fallback-v1" if timed_out else "llm-eval-v1",
                 )
                 session.add(scoring_db)
+                low_confidence = _assess_low_confidence(eval_results, jsonable_enriched_data, raw_scores)
+                if low_confidence["needs_review"]:
+                    review_layer = ExtractionLayer(
+                        paper_id=paper.id,
+                        layer_number=3,
+                        source="low-confidence-queue",
+                        status="pending_review",
+                        processed_data={
+                            "queue_type": "low_confidence_review",
+                            "confidence_score": low_confidence["confidence_score"],
+                            "reasons": low_confidence["reasons"],
+                            "quality_signals": eval_results.get("_quality_signals", {}),
+                            "source_errors": jsonable_enriched_data.get("source_errors", {}),
+                            "raw_dimension_scores": {str(key): value for key, value in raw_scores.items()},
+                        },
+                    )
+                    session.add(review_layer)
 
                 if layer is not None:
                     enriched_stage = jsonable_enriched_data.get("stage_timings_ms", {})
@@ -190,6 +277,7 @@ async def _evaluate_and_score(paper_id: str) -> None:
                         "enriched_data": jsonable_enriched_data,
                         "stage_timings_ms": merged_stage_timings,
                         "pipeline_timed_out": timed_out,
+                        "low_confidence_review": low_confidence,
                     }
                 await session.commit()
             except Exception as exc:

@@ -8,7 +8,6 @@ import httpx
 from typing import Dict, Any, Optional
 from backend.core.config import settings
 from backend.core.json_utils import coerce_jsonable
-from backend.models.scoring import DIMENSION_NAMES
 
 logger = logging.getLogger(__name__)
 _RECENT_INSIGHTS: deque[str] = deque(maxlen=50)
@@ -20,13 +19,43 @@ _GENERIC_PHRASES = {
     "no go-to-market strategy",
     "no industry validation",
 }
+_DEFAULT_SCORE = 3.0
+_MISSING_RATIONALE = (
+    "Structured rationale was missing from model output; neutral score retained for audit consistency."
+)
+_MISSING_SNIPPET = (
+    "No attributable origin snippet extracted from the parsed paper text; manual validation recommended."
+)
+_DEFAULT_INVESTOR_FIT = [
+    "Early-stage deep tech investors",
+    "Corporate R&D collaboration",
+]
+_DEFAULT_WARNINGS = [
+    "Insufficient risk detail from current extraction",
+    "Validate external market signals with manual Layer 3 review",
+]
+_INSUFFICIENT_EVIDENCE_SUMMARY = (
+    "Evidence quality is insufficient for high-confidence investment inference; "
+    "scores are preserved as provisional pending manual diligence."
+)
+_INSUFFICIENT_EVIDENCE_INSIGHT = (
+    "The current extraction/enrichment evidence is too thin or inconsistent to support a decisive thesis."
+)
+_INSUFFICIENT_EVIDENCE_RECOMMENDATION = "Hold - Insufficient Evidence (Manual Review Required)"
+_INSUFFICIENT_EVIDENCE_WARNINGS = [
+    "Automated output was downgraded due to limited or inconsistent evidence coverage.",
+    "Route this paper to manual analyst review before acting on recommendation.",
+]
 
 
 def _normalize_generic_text(text: str) -> str:
     return " ".join((text or "").lower().strip().split())
 
 
-def _detect_generic_output(result: Dict[str, Any]) -> Dict[str, Any]:
+def _detect_generic_output(
+    result: Dict[str, Any],
+    record_history: bool = True,
+) -> Dict[str, Any]:
     insight = str(result.get("insight") or result.get("executive_summary") or "").strip()
     warnings = result.get("warnings") or []
     warning_text = " ".join(str(item) for item in warnings) if isinstance(warnings, list) else str(warnings)
@@ -43,7 +72,7 @@ def _detect_generic_output(result: Dict[str, Any]) -> Dict[str, Any]:
         reasons.append("contains_generic_phrase")
 
     repeat_count = 0
-    if normalized:
+    if normalized and record_history:
         repeat_count = sum(1 for previous in _RECENT_INSIGHTS if previous == normalized)
         _RECENT_INSIGHTS.append(normalized)
     if repeat_count >= 2:
@@ -54,6 +83,74 @@ def _detect_generic_output(result: Dict[str, Any]) -> Dict[str, Any]:
         "generic_output_reasons": reasons,
         "recent_repeat_count": repeat_count,
     }
+
+
+def _safe_float(value: Any, default: float = _DEFAULT_SCORE) -> tuple[float, bool]:
+    try:
+        return float(value), False
+    except Exception:
+        return default, True
+
+
+def _coerce_string_list(value: Any, fallback: list[str], max_items: int = 3) -> list[str]:
+    if isinstance(value, list):
+        cleaned = [str(item).strip() for item in value if str(item).strip()]
+        if cleaned:
+            return cleaned[:max_items]
+    return fallback[:max_items]
+
+
+def _average_dimension_score(scores: dict[str, dict[str, Any]]) -> float:
+    values = [float((item or {}).get("score") or _DEFAULT_SCORE) for item in scores.values()]
+    if not values:
+        return _DEFAULT_SCORE
+    return sum(values) / len(values)
+
+
+def _derive_recommendation_from_scores(avg_score: float) -> str:
+    if avg_score >= 4.2:
+        return "Tier A - High Priority Diligence"
+    if avg_score >= 3.6:
+        return "Tier B - Targeted Validation"
+    if avg_score >= 3.0:
+        return "Tier C - Conditional Monitoring"
+    return "Tier D - Defer"
+
+
+def _build_summary_from_scores(scores: dict[str, dict[str, Any]]) -> str:
+    avg_score = _average_dimension_score(scores)
+    strong_dims = [dim_id for dim_id, item in scores.items() if float(item.get("score") or 0.0) >= 4.0]
+    weak_dims = [dim_id for dim_id, item in scores.items() if float(item.get("score") or 5.0) <= 2.5]
+    headline = f"Average dimension score is {avg_score:.2f}/5 from automated extraction."
+    if strong_dims:
+        headline += f" Strongest dimensions: {', '.join(str(dim_id) for dim_id in strong_dims[:3])}."
+    if weak_dims:
+        headline += f" Watch dimensions: {', '.join(str(dim_id) for dim_id in weak_dims[:3])}."
+    return headline
+
+
+def _build_insight_from_scores(scores: dict[str, dict[str, Any]]) -> str:
+    dim2 = float(scores.get("2", {}).get("score", _DEFAULT_SCORE))
+    dim3 = float(scores.get("3", {}).get("score", _DEFAULT_SCORE))
+    dim9 = float(scores.get("9", {}).get("score", _DEFAULT_SCORE))
+    if dim9 <= 1.0:
+        return "Governance risk signal is severe enough to trigger integrity gate override."
+    if dim2 >= 4.0 and dim3 < 3.0:
+        return "Scientific quality is promising, but commercialization signals remain early."
+    if dim2 < 3.0:
+        return "Core scientific rigor appears uncertain and needs deeper manual validation."
+    return "Signals are mixed; additional evidence is required for stronger conviction."
+
+
+def _build_warnings_from_scores(scores: dict[str, dict[str, Any]]) -> list[str]:
+    warnings: list[str] = []
+    if float(scores.get("3", {}).get("score", _DEFAULT_SCORE)) < 3.0:
+        warnings.append("No clear go-to-market strategy evidence in extracted material")
+    if float(scores.get("8", {}).get("score", _DEFAULT_SCORE)) < 3.0:
+        warnings.append("Technical or execution uncertainty remains elevated")
+    if float(scores.get("9", {}).get("score", _DEFAULT_SCORE)) <= 1.0:
+        warnings.append("Governance integrity gate risk detected")
+    return warnings or _DEFAULT_WARNINGS[:]
 
 class ScientificEvaluator:
     """Orchestrates scientific due diligence using LLM synthesis."""
@@ -94,6 +191,154 @@ class ScientificEvaluator:
             except Exception as exc:
                 logger.error(f"Gemini evaluation failed: {exc}")
                 return {"error": str(exc)}
+
+    def _validate_and_repair_schema(
+        self,
+        eval_result: Dict[str, Any] | Any,
+        metadata: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        source_payload = eval_result if isinstance(eval_result, dict) else {}
+        repaired_scores: dict[str, dict[str, Any]] = {}
+        repair_count = 0
+        missing_dimensions: list[int] = []
+        defaulted_dimensions: list[int] = []
+        clamped_dimensions: list[int] = []
+        missing_snippet_dimensions: list[int] = []
+
+        raw_scores = source_payload.get("scores")
+        if not isinstance(raw_scores, dict):
+            raw_scores = {}
+            repair_count += 1
+
+        for dim_id in range(1, 10):
+            raw_item = raw_scores.get(str(dim_id), raw_scores.get(dim_id))
+            if not isinstance(raw_item, dict):
+                raw_item = {}
+                missing_dimensions.append(dim_id)
+                repair_count += 1
+
+            raw_score = raw_item.get("score")
+            score, was_defaulted = _safe_float(raw_score)
+            if was_defaulted:
+                defaulted_dimensions.append(dim_id)
+                repair_count += 1
+            clamped_score = max(1.0, min(5.0, score))
+            if clamped_score != score:
+                clamped_dimensions.append(dim_id)
+                repair_count += 1
+
+            rationale = str(raw_item.get("rationale") or "").strip()
+            if not rationale:
+                rationale = _MISSING_RATIONALE
+                repair_count += 1
+
+            origin_snippet = str(raw_item.get("origin_snippet") or raw_item.get("snippet") or "").strip()
+            if not origin_snippet:
+                origin_snippet = _MISSING_SNIPPET
+                missing_snippet_dimensions.append(dim_id)
+                repair_count += 1
+
+            repaired_scores[str(dim_id)] = {
+                "score": round(clamped_score, 4),
+                "rationale": rationale,
+                "origin_snippet": origin_snippet,
+            }
+
+        executive_summary = str(source_payload.get("executive_summary") or "").strip()
+        insight = str(source_payload.get("insight") or "").strip()
+        avg_score = _average_dimension_score(repaired_scores)
+        if not executive_summary:
+            executive_summary = _build_summary_from_scores(repaired_scores)
+            repair_count += 1
+        if not insight:
+            insight = _build_insight_from_scores(repaired_scores)
+            repair_count += 1
+
+        investment_recommendation = str(source_payload.get("investment_recommendation") or "").strip()
+        if not investment_recommendation:
+            investment_recommendation = _derive_recommendation_from_scores(avg_score)
+            repair_count += 1
+
+        investor_fit = _coerce_string_list(
+            source_payload.get("investor_fit"),
+            fallback=_DEFAULT_INVESTOR_FIT,
+        )
+        if investor_fit == _DEFAULT_INVESTOR_FIT:
+            repair_count += 1
+
+        warnings = _coerce_string_list(
+            source_payload.get("warnings"),
+            fallback=_build_warnings_from_scores(repaired_scores),
+        )
+        if not source_payload.get("warnings"):
+            repair_count += 1
+
+        metadata_payload = metadata if isinstance(metadata, dict) else {}
+        source_errors = metadata_payload.get("source_errors")
+        source_error_count = len(source_errors) if isinstance(source_errors, dict) else 0
+        snippet_present_count = sum(
+            1
+            for score_item in repaired_scores.values()
+            if str(score_item.get("origin_snippet") or "").strip()
+            and str(score_item.get("origin_snippet")).strip() != _MISSING_SNIPPET
+        )
+        snippet_coverage_ratio = round(snippet_present_count / 9.0, 4)
+
+        result = {
+            "scores": repaired_scores,
+            "executive_summary": executive_summary,
+            "investment_recommendation": investment_recommendation,
+            "insight": insight,
+            "investor_fit": investor_fit,
+            "warnings": warnings,
+            "_quality_signals": {
+                **(source_payload.get("_quality_signals") if isinstance(source_payload.get("_quality_signals"), dict) else {}),
+                "schema_repair_applied": repair_count > 0,
+                "schema_repair_count": repair_count,
+                "missing_dimensions": missing_dimensions,
+                "defaulted_dimensions": defaulted_dimensions,
+                "clamped_dimensions": clamped_dimensions,
+                "missing_snippet_dimensions": missing_snippet_dimensions,
+                "source_error_count": source_error_count,
+                "snippet_coverage_ratio": snippet_coverage_ratio,
+            },
+        }
+        if source_payload.get("error"):
+            result["error"] = str(source_payload.get("error"))
+
+        insufficient_reasons: list[str] = []
+        if snippet_coverage_ratio < 0.45:
+            insufficient_reasons.append("low_snippet_coverage")
+        if source_error_count >= 2:
+            insufficient_reasons.append("multiple_source_errors")
+        if len(defaulted_dimensions) >= 4:
+            insufficient_reasons.append("many_defaulted_dimensions")
+        if result.get("error"):
+            insufficient_reasons.append("llm_error")
+        generic_probe = _detect_generic_output(
+            {
+                "insight": result.get("insight"),
+                "warnings": result.get("warnings"),
+                "executive_summary": result.get("executive_summary"),
+            },
+            record_history=False,
+        )
+        if generic_probe.get("generic_output_detected"):
+            insufficient_reasons.append("generic_output_pattern")
+
+        if insufficient_reasons:
+            result["executive_summary"] = _INSUFFICIENT_EVIDENCE_SUMMARY
+            result["insight"] = _INSUFFICIENT_EVIDENCE_INSIGHT
+            result["investment_recommendation"] = _INSUFFICIENT_EVIDENCE_RECOMMENDATION
+            result["investor_fit"] = [
+                "Internal diligence team review",
+                "Domain expert panel review",
+            ]
+            merged_warnings = _INSUFFICIENT_EVIDENCE_WARNINGS + list(result.get("warnings") or [])
+            result["warnings"] = list(dict.fromkeys(merged_warnings))[:4]
+        result["_quality_signals"]["insufficient_evidence"] = bool(insufficient_reasons)
+        result["_quality_signals"]["insufficient_evidence_reasons"] = insufficient_reasons
+        return result
 
     async def evaluate_content(
         self, 
@@ -173,13 +418,15 @@ class ScientificEvaluator:
 
         if settings.gemini_api_key:
             eval_result = await self._evaluate_with_gemini(prompt)
+            repaired_result = self._validate_and_repair_schema(eval_result, metadata)
             llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
-            return self._attach_quality_signals(eval_result, llm_provider, llm_ms)
+            return self._attach_quality_signals(repaired_result, llm_provider, llm_ms)
 
         if not self.api_key:
             logger.error("No Gemini (GEMINI_API_KEY) or Zhipu/GLM (ZAI_API_KEY) key configured for evaluation.")
+            repaired_result = self._validate_and_repair_schema({}, metadata)
             llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
-            return self._attach_quality_signals({}, llm_provider, llm_ms)
+            return self._attach_quality_signals(repaired_result, llm_provider, llm_ms)
 
         async with httpx.AsyncClient(timeout=90.0) as client:
             headers = {
@@ -202,12 +449,14 @@ class ScientificEvaluator:
                 data = resp.json()
                 content = data["choices"][0]["message"]["content"]
                 eval_result = json.loads(content)
+                repaired_result = self._validate_and_repair_schema(eval_result, metadata)
                 llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
-                return self._attach_quality_signals(eval_result, llm_provider, llm_ms)
+                return self._attach_quality_signals(repaired_result, llm_provider, llm_ms)
             except Exception as e:
                 logger.error(f"LLM Evaluation failed: {e}")
+                repaired_result = self._validate_and_repair_schema({"error": str(e)}, metadata)
                 llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)
-                return self._attach_quality_signals({"error": str(e)}, llm_provider, llm_ms)
+                return self._attach_quality_signals(repaired_result, llm_provider, llm_ms)
 
     def _attach_quality_signals(
         self,
