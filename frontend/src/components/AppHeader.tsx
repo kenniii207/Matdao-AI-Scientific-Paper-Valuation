@@ -3,57 +3,42 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const navItems: Array<{ href: string; label: string }> = [
-  { href: '/', label: 'Evaluation' },
-  { href: '/submit', label: 'Research' },
-  { href: '/upsell', label: 'Analytics' },
-];
-
 export default function AppHeader() {
   const pathname = usePathname();
+  const showNav = pathname !== '/submit';
 
   return (
-    <header className="bg-surface-container-lowest/90 backdrop-blur-md docked full-width top-0 sticky z-50 border-b border-outline-variant/10">
-      <div className="flex justify-between items-center w-full max-w-7xl mx-auto px-6 md:px-8 h-20">
+    <header className="bg-black/30 docked full-width top-0 sticky z-50">
+      <div className="flex justify-between items-center w-full max-w-6xl mx-auto px-6 md:px-10 h-20">
         <Link
           href="/"
-          className="text-2xl font-extrabold tracking-tighter text-primary-fixed font-headline"
+          className="text-lg font-semibold tracking-tight text-on-surface/60 font-headline"
         >
           MatDAO
         </Link>
 
-        <nav className="hidden md:flex items-center gap-8">
-          {navItems.map((item) => {
-            const active =
-              pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={[
-                  'transition-colors text-sm font-semibold font-body',
-                  active
-                    ? 'text-primary-fixed border-b-2 border-primary-fixed pb-1'
-                    : 'text-on-surface-variant/50 hover:text-primary-fixed',
-                ].join(' ')}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+        {showNav ? (
+          <nav className="hidden md:flex items-center gap-8 text-sm text-on-surface/40">
+            <Link className="hover:text-on-surface/70 transition-colors" href="/submit">
+              Evaluation
+            </Link>
+            <Link className="hover:text-on-surface/70 transition-colors" href="/upsell">
+              Accuracy
+            </Link>
+          </nav>
+        ) : null}
 
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="material-symbols-outlined text-primary-fixed hover:bg-surface-container transition-all duration-300 p-2 rounded-full"
-            aria-label="Account"
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-on-surface/70 hover:bg-white/10 transition-colors"
+            aria-label="Profile"
           >
-            account_circle
+            <span className="font-medium">Profile</span>
+            <span className="material-symbols-outlined text-base leading-none">expand_more</span>
           </button>
         </div>
       </div>
     </header>
   );
 }
-

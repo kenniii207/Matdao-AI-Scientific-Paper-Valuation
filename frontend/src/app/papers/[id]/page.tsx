@@ -114,74 +114,26 @@ export default function PaperResultsPage() {
 
       <main className="flex-grow lg:ml-0 p-6 md:p-8 pt-6 max-w-7xl mx-auto w-full">
         {loading ? (
-          <section className="min-h-[70vh] flex items-center justify-center px-6 relative overflow-hidden">
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              <div
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full opacity-10 blur-[120px]"
-                style={{ background: 'radial-gradient(circle, #00dce5 0%, transparent 70%)' }}
-              />
-            </div>
+          <section className="min-h-[70vh] flex items-center justify-center px-6">
+            <div className="w-full max-w-3xl text-center">
+              <h1 className="font-headline text-4xl md:text-5xl font-extrabold text-white/80 tracking-tight mb-10">
+                Analyzing your research
+              </h1>
 
-            <div className="w-full max-w-2xl text-center z-10">
-              <div className="mb-12">
-                <span className="font-headline text-xs uppercase tracking-[0.3em] text-primary-fixed opacity-60 mb-4 block">
-                  System status: Active
-                </span>
-                <h1 className="font-headline text-4xl md:text-5xl font-extrabold text-on-surface tracking-tighter mb-4">
-                  Analyzing your research
-                </h1>
-                <p className="font-body text-on-surface-variant text-lg max-w-md mx-auto leading-relaxed">
-                  Extracting text, enriching metadata, and generating 9-dimension scorecard.
-                </p>
-              </div>
-
-              <div className="w-full bg-surface-container-highest h-6 rounded-full overflow-hidden mb-12 relative">
+              <div className="w-full max-w-3xl mx-auto h-5 rounded-full border border-white/15 bg-white/5 overflow-hidden">
                 <div
-                  className="absolute left-0 top-0 h-full bg-white rounded-full transition-all duration-1000 ease-in-out shadow-[0_0_25px_rgba(255,255,255,0.35)]"
+                  className="h-full bg-white rounded-full transition-all duration-1000"
                   style={{ width: `${progressPercent}%` }}
-                >
-                  <div className="w-full h-full opacity-50 bg-gradient-to-r from-transparent via-primary-fixed/30 to-transparent" />
-                </div>
+                />
               </div>
 
-              <div className="grid grid-cols-3 gap-6 mb-14">
-                <div className="text-left">
-                  <p className="font-label text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">
-                    Status
-                  </p>
-                  <p className="font-headline text-sm font-bold text-on-surface">Synthesizing</p>
-                </div>
-                <div className="text-center">
-                  <p className="font-label text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">
-                    Completion
-                  </p>
-                  <p className="font-headline text-sm font-bold text-primary-fixed">
-                    {progressPercent}%
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-label text-[10px] uppercase tracking-widest text-on-surface-variant mb-1">
-                    Paper ID
-                  </p>
-                  <p className="font-headline text-sm font-bold text-on-surface">
-                    {paperId.slice(0, 8)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center gap-5">
+              <div className="mt-10">
                 <button
-                  className="px-10 py-4 bg-primary-container text-on-primary-fixed font-headline font-bold rounded-full opacity-50 cursor-not-allowed"
+                  className="rounded-full border border-white/20 bg-white/5 px-10 py-3 text-sm font-semibold text-white/60 cursor-not-allowed"
                   disabled
                 >
                   See the result
                 </button>
-                <div className="flex items-center gap-2 text-on-surface-variant opacity-40">
-                  <span className="material-symbols-outlined text-sm animate-pulse">sync</span>
-                  <span className="text-xs font-medium uppercase tracking-tighter font-body">
-                    Generating final report...
-                  </span>
-                </div>
               </div>
             </div>
           </section>
@@ -209,193 +161,105 @@ export default function PaperResultsPage() {
             </div>
           </section>
         ) : data ? (
-          <>
-            <aside className="h-full w-64 fixed left-0 top-0 pt-24 bg-surface-container-lowest hidden lg:block">
-              <div className="flex flex-col gap-4 p-6">
-                <div className="mb-6 px-4">
-                  <p className="text-primary-fixed text-xs font-headline uppercase tracking-widest mb-1">
-                    Project
-                  </p>
-                  <p className="text-on-surface-variant text-[10px] uppercase tracking-[0.2em]">
-                    {data.doi || paperId}
-                  </p>
-                </div>
-                <nav className="space-y-2">
-                  {[
-                    { label: 'Overview', icon: 'dashboard' },
-                    { label: 'Analysis', icon: 'analytics', active: true },
-                    { label: 'Review', icon: 'rate_review', href: `/review/${paperId}` },
-                  ].map((item) => (
-                    <Link
-                      key={item.label}
-                      href={item.href || '#'}
-                      className={[
-                        'flex items-center gap-3 p-3 rounded-sm ease-in-out duration-200',
-                        item.active
-                          ? 'bg-surface-container text-primary-fixed border-r-4 border-primary-fixed'
-                          : 'text-on-surface-variant/60 hover:bg-surface-container/50',
-                      ].join(' ')}
-                    >
-                      <span className="material-symbols-outlined">{item.icon}</span>
-                      <span className="text-xs font-headline uppercase tracking-widest">
-                        {item.label}
-                      </span>
-                    </Link>
-                  ))}
-                </nav>
-                <Link
-                  href="/upsell"
-                  className="mt-8 mx-4 bg-primary-container text-on-primary-fixed py-3 rounded-sm text-[10px] font-bold uppercase tracking-widest hover:brightness-110 transition-all text-center"
-                >
-                  Improve Accuracy
-                </Link>
-              </div>
-            </aside>
-
-            <div className="lg:ml-64">
-              <header className="mb-12">
-                <h1 className="text-4xl font-extrabold font-headline tracking-tight text-on-surface mb-2">
-                  Results Summary
-                </h1>
-                <p className="text-on-surface-variant font-body">
-                  Paper: {data.paper_title || 'Untitled'} • Grade {data.grade}
-                </p>
-              </header>
-
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-10 items-start">
-                <div className="xl:col-span-5 space-y-8">
-                  <section className="bg-surface-container rounded-xl p-8 border border-outline-variant/15 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                      <span className="material-symbols-outlined text-6xl">verified</span>
+          <section
+            className="rounded-2xl overflow-hidden border border-white/10"
+            style={{
+              backgroundImage: 'url(/figma/results-bg.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }}
+          >
+            <div className="bg-black/70 backdrop-blur-sm px-6 md:px-10 py-10">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-5 space-y-6">
+                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                    <div className="text-white/60 text-sm mb-1">Score:</div>
+                    <div className="text-white/90 font-headline font-extrabold text-5xl">
+                      {score} <span className="text-white/40 text-2xl">/ 100</span>
                     </div>
-                    <div className="flex justify-between items-end mb-6">
-                      <div>
-                        <p className="text-primary-fixed text-xs font-headline uppercase tracking-[0.2em] mb-2">
-                          Project Score
-                        </p>
-                        <h2 className="text-7xl font-extrabold font-headline tracking-tighter text-on-surface">
-                          {score}{' '}
-                          <span className="text-2xl text-on-surface-variant font-medium">/ 100</span>
-                        </h2>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-on-surface-variant text-[10px] font-headline uppercase tracking-widest mb-1">
-                          Confidence
-                        </p>
-                        <p className="text-primary-fixed text-2xl font-bold font-headline">
-                          {data.confidence_tier || 'AUTOMATED'}
-                        </p>
-                      </div>
+                    <div className="text-white/45 text-sm mt-3">
+                      Confidence: {data.confidence_tier || 'automated analysis'}
                     </div>
+                  </div>
 
-                    <div className="space-y-4 pt-6 border-t border-outline-variant/10">
-                      <p className="text-on-surface-variant text-sm leading-relaxed">
-                        {data.integrity_gate_triggered
-                          ? 'Integrity gate triggered. Total score forced to 0 for governance risk.'
-                          : 'Evaluation completed. Review dimension breakdown and evidence snippets.'}
-                      </p>
+                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                    <div className="text-white/60 text-sm mb-3">Insight:</div>
+                    <div className="text-white/50 text-sm leading-relaxed">
+                      {data.integrity_gate_triggered
+                        ? 'Governance integrity gate triggered. Total score forced to 0.'
+                        : 'Your research shows strong scientific rigor but limited commercialization signals.'}
                     </div>
-                  </section>
+                  </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <section className="bg-surface-container rounded-xl p-6 border border-outline-variant/15">
-                      <div className="flex items-center gap-2 mb-4">
-                        <span className="material-symbols-outlined text-primary-fixed">groups</span>
-                        <h3 className="text-xs font-headline uppercase tracking-widest text-primary-fixed">
-                          Investor Fit
-                        </h3>
-                      </div>
-                      <ul className="space-y-3">
-                        {['Early-stage deep tech', 'Corporate R&D'].map((t) => (
-                          <li key={t} className="flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary-fixed" />
-                            <span className="text-xs text-on-surface">{t}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
+                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                    <div className="text-white/60 text-sm mb-3">Investor Fit:</div>
+                    <ul className="space-y-2 text-white/60 text-sm">
+                      {['Early-stage deep tech investors', 'Corporate R&D collaboration'].map((t) => (
+                        <li key={t} className="flex items-center gap-2">
+                          <span className="text-[#6efcff]">✓</span>
+                          {t}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
 
-                    <section className="bg-surface-container rounded-xl p-6 border border-outline-variant/15">
-                      <div className="flex items-center gap-2 mb-4">
-                        <span
-                          className={[
-                            'material-symbols-outlined',
-                            data.integrity_gate_triggered ? 'text-error' : 'text-primary-fixed',
-                          ].join(' ')}
-                        >
-                          warning
-                        </span>
-                        <h3
-                          className={[
-                            'text-xs font-headline uppercase tracking-widest',
-                            data.integrity_gate_triggered ? 'text-error' : 'text-primary-fixed',
-                          ].join(' ')}
-                        >
-                          Warnings
-                        </h3>
-                      </div>
-                      <ul className="space-y-3">
-                        {(data.integrity_gate_triggered
-                          ? ['Governance risk flagged (Dim 9)', 'Score forced to 0']
-                          : ['No critical governance flags detected']
-                        ).map((t) => (
-                          <li key={t} className="flex items-center gap-2">
-                            <span
-                              className={[
-                                'w-1.5 h-1.5 rounded-full',
-                                data.integrity_gate_triggered ? 'bg-error' : 'bg-primary-fixed',
-                              ].join(' ')}
-                            />
-                            <span className="text-xs text-on-surface">{t}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
+                  <div className="border border-white/10 bg-black/30 rounded-xl p-6">
+                    <div className="text-white/60 text-sm mb-3">Warnings:</div>
+                    <ul className="space-y-2 text-white/60 text-sm">
+                      {(data.integrity_gate_triggered
+                        ? ['Governance risk flagged (Dim 9)', 'Score forced to 0']
+                        : ['No go-to-market strategy', 'No industry validation']
+                      ).map((t) => (
+                        <li key={t} className="flex items-center gap-2">
+                          <span className="text-yellow-300">⚠</span>
+                          {t}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 </div>
 
-                <div className="xl:col-span-7">
-                  <section className="bg-surface-container rounded-xl p-8 border border-outline-variant/15">
-                    <div className="flex justify-between items-center mb-10">
-                      <h3 className="text-xs font-headline uppercase tracking-[0.2em] text-on-surface-variant">
-                        9-Dimension Breakdown
-                      </h3>
-                      <span className="material-symbols-outlined text-on-surface-variant">hub</span>
-                    </div>
-
-                    <div className="space-y-8">
+                <div className="lg:col-span-7">
+                  <div className="border border-white/10 bg-black/25 rounded-xl p-6">
+                    <div className="space-y-5">
                       {dims.map((d) => (
-                        <div key={d.dimension_id} className="group">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="text-xs font-headline tracking-wide text-on-surface group-hover:text-primary-fixed transition-colors">
-                              {d.dimension_id}. {d.dimension_name}
-                            </span>
-                            <span className="text-xs font-bold text-primary-fixed">{d.percent}</span>
+                        <div key={d.dimension_id} className="grid grid-cols-12 gap-3 items-center">
+                          <div className="col-span-5 text-white/55 text-sm">
+                            {d.dimension_name}
                           </div>
-                          <div className="h-1 w-full bg-surface-container-highest rounded-full overflow-hidden">
+                          <div className="col-span-6 h-2 rounded-full bg-white/10 overflow-hidden">
                             <div
-                              className="h-full bg-gradient-to-r from-primary-fixed-dim to-primary-fixed shadow-[0_0_8px_rgba(99,247,255,0.35)]"
+                              className="h-full bg-gradient-to-r from-[#6efcff] to-[#00dce5] shadow-[0_0_10px_rgba(110,252,255,0.35)]"
                               style={{ width: `${d.percent}%` }}
                             />
+                          </div>
+                          <div className="col-span-1 text-right text-white/55 text-sm tabular-nums">
+                            {d.percent}
                           </div>
                         </div>
                       ))}
                     </div>
-                  </section>
 
-                  <footer className="mt-14 flex justify-center pb-10">
-                    <Link
-                      href="/upsell"
-                      className="flex items-center gap-3 bg-transparent border border-primary-fixed text-primary-fixed px-12 py-4 rounded-full font-headline font-bold uppercase tracking-widest hover:bg-primary-fixed/5 transition-all duration-300 active:scale-95"
-                    >
-                      Improve Accuracy
-                      <span className="material-symbols-outlined">trending_up</span>
-                    </Link>
-                  </footer>
+                    <div className="mt-10 flex items-center justify-between gap-6">
+                      <div className="text-white/35 text-sm">
+                        We need more information to improve accuracy
+                      </div>
+                      <Link
+                        href="/upsell"
+                        className="inline-flex items-center gap-2 rounded-xl border border-[#6efcff]/30 bg-[#6efcff]/10 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-[#6efcff]/15 transition-colors"
+                      >
+                        Improve Accuracy <span aria-hidden>→</span>
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 text-white/30 text-xs">
+                    Paper: {data.paper_title || 'Untitled'} • DOI: {data.doi || paperId}
+                  </div>
                 </div>
               </div>
             </div>
-          </>
+          </section>
         ) : null}
       </main>
 
