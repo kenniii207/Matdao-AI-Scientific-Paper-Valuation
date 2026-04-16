@@ -119,15 +119,18 @@ export default function SubmitPage() {
             
             <div className="space-y-6">
               {[
-                { title: 'Extraction Layer', status: 'In Progress: Falcon-OCR 300M Inference' },
-                { title: 'API Enrichment', status: 'Pending: OpenAlex / Semantic Scholar Core' },
-                { title: 'Semantic Analysis', status: 'Pending: MatDAO LLM Synthesis' }
+                { title: 'Extraction Layer', status: 'Falcon-OCR 300M Inference', done: !!result || loading },
+                { title: 'API Enrichment', status: 'OpenAlex & Semantic Scholar', done: !!result },
+                { title: 'Scientific Evaluation', status: 'GLM-4 Synthesis', done: !!result }
               ].map((s, i) => (
-                <div key={i} className="flex gap-4 p-4 rounded bg-white/5 border border-white/5">
-                  <div className="w-1.5 h-auto bg-[#97fdff]/30 rounded-full" />
-                  <div>
-                    <h4 className="text-xs font-mono text-[#97fdff] uppercase">{s.title}</h4>
-                    <p className="text-sm font-medium mt-1">{s.status}</p>
+                <div key={i} className={`flex gap-4 p-4 rounded border transition-all ${s.done ? 'bg-green-500/5 border-green-500/20' : 'bg-white/5 border-white/5'}`}>
+                  <div className={`w-1.5 h-auto rounded-full ${s.done ? 'bg-green-500' : 'bg-[#97fdff]/30 animate-pulse'}`} />
+                  <div className="flex-1">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-[10px] font-mono text-[#97fdff] uppercase">{s.title}</h4>
+                      {s.done && <span className="text-[10px] font-mono text-green-400">COMPLETE</span>}
+                    </div>
+                    <p className={`text-sm font-medium mt-1 ${s.done ? 'text-white' : 'text-[#b8b8b8]'}`}>{s.status}</p>
                   </div>
                 </div>
               ))}
@@ -181,7 +184,7 @@ export default function SubmitPage() {
                 <div className="flex gap-4">
                   <button 
                     onClick={() => router.push(`/papers/${result.paper_id}`)}
-                    className="flex-1 px-8 py-3 bg-[#97fdff] text-[#131313] font-bold rounded hover:bg-white transition-all uppercase tracking-wider text-sm"
+                    className="flex-1 px-8 py-3 bg-[#97fdff] text-[#131313] font-bold rounded hover:shadow-[0_0_20px_rgba(151,253,255,0.4)] transition-all uppercase tracking-wider text-sm"
                   >
                     View Detailed Audit
                   </button>

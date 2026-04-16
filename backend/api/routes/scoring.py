@@ -106,6 +106,62 @@ async def evaluate_scoring_for_doi(
     return scoring_result.model_dump()
 
 
+@router.get("/results/{paper_id}")
+async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depends(get_session)):
+    """Retrieve latest scoring result by Paper UUID."""
+    paper = await session.get(ResearchPaper, paper_id)
+    if paper is None:
+        raise HTTPException(status_code=404, detail="Paper not found")
+
+    row = await session.scalar(
+        select(ScoringResultDB)
+        .where(ScoringResultDB.paper_id == paper.id)
+        .order_by(ScoringResultDB.version.desc())
+        .limit(1)
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="No scoring record found for this paper")
+
+    from backend.models.scoring import DIMENSION_NAMES
+    
+    # Construct frontend-friendly response
+    dimensions = []
+    for d_id in range(1, 10):
+        raw_val = getattr(row, f"dim{d_id}_score") or 3.0
+        snip_data = (row.origin_snippets or {}).get(str(d_id), "{}")
+        
+        # Parse rationale/snippet if stored as JSON string
+        rationale = ""
+        snippet = ""
+        try:
+            parsed = json.loads(snip_data)
+            if isinstance(parsed, dict):
+                rationale = parsed.get("rationale", "")
+                snippet = parsed.get("snippet", "")
+            else:
+                snippet = str(parsed)
+        except:
+            snippet = str(snip_data)
+
+        dimensions.append({
+            "dimension_id": d_id,
+            "dimension_name": DIMENSION_NAMES.get(d_id, "Unknown"),
+            "raw_score": raw_val,
+            "rationale": rationale,
+            "origin_snippet": snippet
+        })
+
+    return {
+        "paper_id": str(paper.id),
+        "paper_title": paper.title,
+        "doi": paper.doi,
+        "total_score": row.total_score,
+        "grade": row.grade,
+        "integrity_gate_triggered": row.integrity_gate_triggered,
+        "dimensions": dimensions,
+        "confidence_tier": "HIGH (FALCON-OCR)" if "llm" in (row.scored_by or "") else "AUTOMATED"
+    }
+
 @router.get("/{doi:path}")
 async def get_scoring_result(doi: str, session: AsyncSession = Depends(get_session)):
     """Retrieve latest scoring result for a paper DOI."""
