@@ -89,7 +89,7 @@ class ScientificEvaluator:
         {metadata_str}
 
         ### ANALYSIS RULES
-        - Use document_profile + similar_papers to infer closest research theme before scoring.
+        - Use document_profile + similar_papers_curated (if present) to infer closest research theme before scoring.
         - If metadata has conflicting signals, explain conflict in rationale.
         - Do not output generic statements. Tie conclusions to concrete snippets and metadata evidence.
 

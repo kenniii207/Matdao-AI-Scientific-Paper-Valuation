@@ -19,6 +19,16 @@ class Settings(BaseSettings):
     evaluation_text_max_chars: int = Field(default=12000, alias="EVALUATION_TEXT_MAX_CHARS")
     theme_search_results_per_source: int = Field(default=5, alias="THEME_SEARCH_RESULTS_PER_SOURCE")
     max_parallel_evaluations: int = Field(default=2, alias="MAX_PARALLEL_EVALUATIONS")
+    enable_local_prefilter: bool = Field(default=False, alias="ENABLE_LOCAL_PREFILTER")
+    enable_local_reranker: bool = Field(default=False, alias="ENABLE_LOCAL_RERANKER")
+    local_prefilter_top_k: int = Field(default=10, alias="LOCAL_PREFILTER_TOP_K")
+    local_embedding_model: str = Field(default="BAAI/bge-small-en-v1.5", alias="LOCAL_EMBEDDING_MODEL")
+    local_reranker_model: str = Field(
+        default="cross-encoder/ms-marco-MiniLM-L6-v2",
+        alias="LOCAL_RERANKER_MODEL",
+    )
+    local_model_device: str = Field(default="cpu", alias="LOCAL_MODEL_DEVICE")
+    local_model_cache_dir: str = Field(default="", alias="LOCAL_MODEL_CACHE_DIR")
 
     # Service URLs
     database_url: str = Field(
