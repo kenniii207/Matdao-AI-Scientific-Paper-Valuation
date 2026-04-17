@@ -80,9 +80,9 @@ export function WebGLShader() {
 
     const initScene = () => {
       refs.scene = new THREE.Scene();
-      refs.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
+      refs.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, powerPreference: 'high-performance' });
       refs.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-      refs.renderer.setClearColor(new THREE.Color(0x000000));
+      refs.renderer.setClearColor(0x000000, 0);
 
       refs.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, -1);
       refs.uniforms = {
@@ -151,5 +151,5 @@ export function WebGLShader() {
     };
   }, []);
 
-  return <canvas ref={canvasRef} className="fixed inset-0 h-full w-full block pointer-events-none" />;
+  return <canvas ref={canvasRef} className="fixed inset-0 h-full w-full block pointer-events-none -z-10" />;
 }

@@ -8,6 +8,7 @@ import AppFooter from '@/components/AppFooter';
 import AppHeader from '@/components/AppHeader';
 import { AnimatedRouteLink } from '@/components/AnimatedRouteLink';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
+import { TypeAnimation } from 'react-type-animation';
 import { GradientCard } from '@/components/ui/gradient-card';
 import { LiquidButton } from '@/components/ui/liquid-glass-button';
 
@@ -122,8 +123,23 @@ export default function Home() {
             <p className="landing-intro mb-4 inline-flex items-center rounded-full border border-[#6efcff]/35 bg-[#6efcff]/10 px-4 py-1 text-[11px] uppercase tracking-[0.18em] text-[#c5fdff]">
               4-Layer Scientific Due Diligence
             </p>
-            <h1 className="landing-title font-headline text-4xl md:text-6xl font-extrabold tracking-tight text-white/95 mb-3">
-              Select your intention
+            <h1 className="landing-title font-headline text-4xl md:text-6xl font-extrabold tracking-tight text-white/95 mb-3 flex flex-col items-center justify-center min-h-[90px] md:min-h-[120px]">
+              <span>Select your <TypeAnimation
+                sequence={[
+                  'intention',
+                  3000,
+                  'direction',
+                  3000,
+                  'strategy',
+                  3000,
+                  'pathway',
+                  3000,
+                ]}
+                wrapper="span"
+                speed={50}
+                repeat={Infinity}
+                className="text-[#89fdff]"
+              /></span>
             </h1>
             <p className="landing-subcopy text-white/70 font-body max-w-2xl mx-auto text-sm md:text-lg">
               Start from one pathway and we&apos;ll guide you from evidence extraction to decision-ready scoring.
