@@ -51,20 +51,29 @@ export function WebGLShader() {
         float gx = p.x;
         float bx = p.x * (1.0 - d);
 
-        float r = 0.05 / abs(p.y + sin((rx + time) * xScale) * yScale);
-        float g = 0.05 / abs(p.y + sin((gx + time) * xScale) * yScale);
-        float b = 0.05 / abs(p.y + sin((bx + time) * xScale) * yScale);
+        float r = 0.12 / abs(p.y + sin((rx + time) * xScale) * yScale);
+        float g = 0.12 / abs(p.y + sin((gx + time) * xScale) * yScale);
+        float b = 0.12 / abs(p.y + sin((bx + time) * xScale) * yScale);
         
-        gl_FragColor = vec4(r, g, b, 1.0);
+        // High vibrancy for production visibility on all displays
+        vec3 finalColor = vec3(r, g, b);
+        // Ensure some alpha even for dimmer parts to prevent invisible lines
+        gl_FragColor = vec4(finalColor, clamp(max(max(r, g), b) * 3.0, 0.1, 1.0));
       }
     `
 
     const initScene = () => {
+      console.log('MatDAO: Initializing WebGL Shader...');
       refs.scene = new THREE.Scene()
-      // Use alpha: true and set clear alpha to 0 for transparency
-      refs.renderer = new THREE.WebGLRenderer({ canvas, alpha: true })
-      refs.renderer.setPixelRatio(window.devicePixelRatio)
+      refs.renderer = new THREE.WebGLRenderer({ 
+        canvas, 
+        alpha: true,
+        antialias: true,
+        powerPreference: 'high-performance'
+      })
+      refs.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
       refs.renderer.setClearColor(0x000000, 0)
+      console.log('MatDAO: Renderer initialized');
 
       refs.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, -1)
 
@@ -103,11 +112,20 @@ export function WebGLShader() {
       handleResize()
     }
 
-    const animate = () => {
-      if (refs.uniforms) refs.uniforms.time.value += 0.01
-      if (refs.renderer && refs.scene && refs.camera) {
-        refs.renderer.render(refs.scene, refs.camera)
+    let lastLogTime = 0;
+    const animate = (time: number) => {
+      if (!refs.renderer || !refs.scene || !refs.camera || !refs.mesh || !refs.uniforms) return
+      
+      const currentTime = time * 0.001
+      refs.uniforms.time.value = currentTime
+      refs.renderer.render(refs.scene, refs.camera)
+      
+      // Every 5 seconds, log a heartbeat to production console for debugging
+      if (currentTime - lastLogTime > 5) {
+        console.log('MatDAO Shader: Heartbeat (Looping UI Animation)...');
+        lastLogTime = currentTime;
       }
+      
       refs.animationId = requestAnimationFrame(animate)
     }
 
@@ -120,7 +138,7 @@ export function WebGLShader() {
     }
 
     initScene()
-    animate()
+    refs.animationId = requestAnimationFrame(animate)
     window.addEventListener("resize", handleResize)
 
     return () => {
@@ -140,7 +158,8 @@ export function WebGLShader() {
   return (
     <canvas
       ref={canvasRef}
-      className="fixed top-0 left-0 w-full h-full block pointer-events-none"
+      className="fixed top-0 left-0 w-full h-full block pointer-events-none z-[1]"
+      style={{ background: 'transparent', opacity: 0.99 }} // Slight opacity trick to force compositor layer
     />
   )
 }
