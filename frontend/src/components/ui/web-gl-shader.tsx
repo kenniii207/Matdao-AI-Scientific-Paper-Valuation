@@ -107,13 +107,15 @@ export function WebGLShader({ disableShader = false }: { disableShader?: boolean
           context: context as WebGLRenderingContext | WebGL2RenderingContext,
           alpha: true,
           antialias: false,
+          depth: false,
+          stencil: false,
           powerPreference: "default",
         })
       } catch {
         setFallback()
         return false
       }
-      refs.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      refs.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75))
       refs.renderer.setClearColor(0x000000, 0)
 
       refs.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10)

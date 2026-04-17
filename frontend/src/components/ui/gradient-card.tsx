@@ -7,7 +7,7 @@ import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const cardVariants = cva(
-  'relative flex flex-col justify-between h-full w-full overflow-hidden rounded-2xl p-8 border border-[#c8f9ff]/[0.28] backdrop-blur-sm shadow-[0_14px_36px_rgba(0,0,0,0.42)] transition-shadow duration-300 hover:shadow-[0_20px_42px_rgba(0,0,0,0.48)]',
+  'relative flex flex-col justify-between h-full w-full overflow-hidden rounded-2xl p-8 border border-[#c8f9ff]/[0.24] shadow-[0_12px_32px_rgba(0,0,0,0.38)] transition-all duration-300 hover:shadow-[0_18px_40px_rgba(0,0,0,0.45)]',
   {
     variants: {
       gradient: {
@@ -67,11 +67,12 @@ const gradientToIntent: Record<CardGradient, CardIntent> = {
   green: 'evaluate',
 };
 
-const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
-  ({ className, gradient, intent, badgeText, badgeColor, title, description, ctaText, ctaHref, imageUrl, ...props }, ref) => {
-    const resolvedGradient = (gradient ?? 'gray') as CardGradient;
-    const resolvedIntent = intent ?? gradientToIntent[resolvedGradient];
-    const vector = vectorPalette[resolvedGradient];
+const GradientCard = React.memo(
+  React.forwardRef<HTMLDivElement, GradientCardProps>(
+    ({ className, gradient, intent, badgeText, badgeColor, title, description, ctaText, ctaHref, imageUrl, ...props }, ref) => {
+      const resolvedGradient = (gradient ?? 'gray') as CardGradient;
+      const resolvedIntent = intent ?? gradientToIntent[resolvedGradient];
+      const vector = vectorPalette[resolvedGradient];
 
     const cardAnimation = {
       rest: { scale: 1, y: 0 },
@@ -98,7 +99,7 @@ const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
         return (
           <motion.svg
             viewBox="0 0 220 220"
-            className="relative h-full w-full drop-shadow-[0_0_14px_rgba(0,0,0,0.35)]"
+            className="relative h-full w-full opacity-90"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
           >
@@ -134,7 +135,7 @@ const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
         return (
           <motion.svg
             viewBox="0 0 220 220"
-            className="relative h-full w-full drop-shadow-[0_0_14px_rgba(0,0,0,0.35)]"
+            className="relative h-full w-full opacity-90"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
           >
@@ -166,7 +167,7 @@ const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
       return (
         <motion.svg
           viewBox="0 0 220 220"
-          className="relative h-full w-full drop-shadow-[0_0_14px_rgba(0,0,0,0.35)]"
+          className="relative h-full w-full opacity-90"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
@@ -212,22 +213,28 @@ const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
         animate="rest" 
         className="h-full" 
         ref={ref}
-        transition={{ type: 'spring', stiffness: 100, damping: 20 }}
+        transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
       >
-        <div className={cn(cardVariants({ gradient }), className)} {...props}>
+        <div 
+          className={cn(cardVariants({ gradient }), className)} 
+          style={{ transform: 'translate3d(0,0,0)', willChange: 'transform, box-shadow' }}
+          {...props}
+        >
           <motion.img
             src={imageUrl}
             alt={`${title} background graphic`}
             variants={backgroundImageAnimation}
-            transition={{ type: 'spring', stiffness: 340, damping: 18 }}
-            className="absolute inset-0 h-full w-full object-cover pointer-events-none opacity-[0.72]"
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="absolute inset-0 h-full w-full object-cover pointer-events-none opacity-[0.68]"
+            style={{ willChange: 'transform' }}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/[0.1] via-black/[0.44] to-black/[0.84] pointer-events-none" />
 
           <motion.div
             variants={vectorWrapAnimation}
-            transition={{ type: 'spring', stiffness: 240, damping: 18 }}
+            transition={{ type: 'spring', stiffness: 200, damping: 22 }}
             className="absolute -right-3 -bottom-3 h-36 w-36 pointer-events-none z-[1]"
+            style={{ willChange: 'transform, opacity' }}
           >
             <div
               className="absolute inset-0 rounded-full blur-2xl"
@@ -236,8 +243,8 @@ const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
             {renderIntentVector()}
           </motion.div>
 
-          <div className="z-10 flex flex-col h-full">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-3 py-1 text-sm font-medium text-white/80 backdrop-blur-sm w-fit">
+          <div className="z-10 flex flex-col h-full pointer-events-none">
+            <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-3 py-1 text-sm font-medium text-white/80 backdrop-blur-md w-fit">
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: badgeColor }} />
               {badgeText}
             </div>
@@ -263,7 +270,7 @@ const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
       </motion.div>
     );
   }
-);
+));
 GradientCard.displayName = 'GradientCard';
 
 export { GradientCard, cardVariants };

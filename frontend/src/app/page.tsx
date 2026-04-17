@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import gsap from 'gsap';
@@ -32,6 +32,10 @@ export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const heroRef = useRef<HTMLDivElement | null>(null);
   const [activeIntent, setActiveIntent] = useState<string | null>(null);
+
+  const handleIntentHover = useCallback((intent: string | null) => {
+    setActiveIntent(intent);
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -162,10 +166,10 @@ export default function Home() {
                 className={`landing-card group text-left focus-glow rounded-2xl ${
                   activeIntent && activeIntent !== card.intent ? 'opacity-70' : 'opacity-100'
                 }`}
-                onMouseEnter={() => setActiveIntent(card.intent)}
-                onFocus={() => setActiveIntent(card.intent)}
-                onMouseLeave={() => setActiveIntent((prev) => (prev === card.intent ? null : prev))}
-                onBlur={() => setActiveIntent((prev) => (prev === card.intent ? null : prev))}
+                onMouseEnter={() => handleIntentHover(card.intent)}
+                onFocus={() => handleIntentHover(card.intent)}
+                onMouseLeave={() => handleIntentHover(null)}
+                onBlur={() => handleIntentHover(null)}
                 onClick={(e) => navigateWithPulse(card.href, e.currentTarget)}
               >
                 <GradientCard
