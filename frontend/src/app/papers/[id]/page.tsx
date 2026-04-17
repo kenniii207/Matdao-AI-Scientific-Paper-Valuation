@@ -174,7 +174,12 @@ export default function PaperResultsPage() {
     <div className="min-h-screen flex flex-col">
       <AppHeader />
 
-      <main className="flex-grow lg:ml-0 p-4 sm:p-6 md:p-8 pt-5 md:pt-6 max-w-7xl mx-auto w-full">
+      <main className="flex-grow lg:ml-0 p-4 sm:p-6 md:p-8 pt-5 md:pt-6 max-w-7xl mx-auto w-full relative">
+        <div className="absolute inset-0 pointer-events-none -z-10">
+          <div className="absolute inset-0 bg-black/70" />
+          <div className="absolute top-[-10%] left-[4%] w-[360px] h-[360px] bg-cyan-400/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-18%] right-[2%] w-[360px] h-[360px] bg-purple-500/10 rounded-full blur-[120px]" />
+        </div>
         <AnimatePresence mode="wait" initial={false}>
           {loading ? (
           <motion.section

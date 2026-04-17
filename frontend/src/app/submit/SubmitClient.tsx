@@ -171,8 +171,13 @@ export default function SubmitClient() {
     <div className="min-h-screen flex flex-col bg-black">
       <AppHeader />
 
-      <main className="flex-grow flex items-center justify-center px-5 sm:px-6 py-10 md:py-16">
-        <div ref={shellRef} className="w-full max-w-4xl text-center">
+      <main className="flex-grow flex items-center justify-center px-5 sm:px-6 py-10 md:py-16 relative">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 bg-black/70" />
+          <div className="absolute top-[-14%] left-[10%] w-[420px] h-[420px] bg-cyan-400/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-20%] right-[8%] w-[420px] h-[420px] bg-indigo-500/10 rounded-full blur-[130px]" />
+        </div>
+        <div ref={shellRef} className="w-full max-w-4xl text-center relative z-10">
           <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-white/85 mb-2" data-route-item data-submit-item>
             {headline}
           </h1>

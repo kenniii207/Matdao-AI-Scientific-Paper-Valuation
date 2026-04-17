@@ -9,8 +9,13 @@ export default function UpsellPage() {
     <div className="min-h-screen flex flex-col bg-black">
       <AppHeader />
 
-      <main className="flex-grow flex items-center justify-center px-6 py-16" data-route-item>
-        <div className="w-full max-w-6xl text-center" data-route-item>
+      <main className="flex-grow flex items-center justify-center px-6 py-16 relative" data-route-item>
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute inset-0 bg-black/70" />
+          <div className="absolute top-[-10%] left-[8%] w-[420px] h-[420px] bg-cyan-400/10 rounded-full blur-[140px]" />
+          <div className="absolute bottom-[-18%] right-[8%] w-[420px] h-[420px] bg-indigo-500/10 rounded-full blur-[140px]" />
+        </div>
+        <div className="w-full max-w-6xl text-center relative z-10" data-route-item>
           <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-white/85 mb-12" data-route-item>
             Improve your evaluation accuracy
           </h1>

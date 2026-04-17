@@ -1,45 +1,76 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import gsap from 'gsap';
 import AppFooter from '@/components/AppFooter';
 import AppHeader from '@/components/AppHeader';
 import { AnimatedRouteLink } from '@/components/AnimatedRouteLink';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
+import { GradientCard } from '@/components/ui/gradient-card';
+import { LiquidButton } from '@/components/ui/liquid-glass-button';
+
+const WebGLShader = dynamic(
+  () => import('@/components/ui/web-gl-shader').then((m) => m.WebGLShader),
+  { ssr: false }
+);
+
+type IntentCard = {
+  intent: 'evaluate' | 'strength' | 'industry';
+  href: string;
+  badgeText: string;
+  badgeColor: string;
+  title: string;
+  description: string;
+  ctaText: string;
+  gradient: 'orange' | 'gray' | 'purple' | 'green';
+  imageUrl: string;
+};
 
 export default function Home() {
   const [activeIntent, setActiveIntent] = useState<string | null>(null);
   const heroRef = useRef<HTMLDivElement | null>(null);
   const reducedMotion = usePrefersReducedMotion();
-  const cards = useMemo(
+  const router = useRouter();
+
+  const cards = useMemo<IntentCard[]>(
     () => [
       {
         intent: 'evaluate',
         href: '/submit?intent=evaluate',
+        badgeText: 'Prototype pick',
+        badgeColor: '#f59e0b',
         title: 'Evaluate my research',
-        subtitle: 'Get a structured analysis',
-        badge: 'Prototype pick',
-        featured: true,
-        img:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuCzQaUkDkntfzTO-mUoBbPeAB6rHEPnn2qm12gP_CVDfspRVSYthP4I8XOoXa5d_Z-mt8fvxxDhakwKY7sCGp2XWCX_OQo4DrmfNvN43rht9fcBHzE_lvnTAcLE-FbJaLdy8YnBFaQqSnjU_JPJ6PZsdui84ecePiiXq2Y6_DQ8TlKrLuobdhcUSaQZB99DIbnxhws3NLFIrNxKF7dYgDPOaXWTwQAEIcIbm3iC73YcmRw_N3cE2cG20CE1LXNNul0RDy8t751GIaxV',
+        description: 'Run structured due diligence from extraction to integrity gate with evidence traces.',
+        ctaText: 'Start evaluation',
+        gradient: 'orange',
+        imageUrl:
+          'https://images.unsplash.com/photo-1581092335397-9583eb92d232?auto=format&fit=crop&w=900&q=80',
       },
       {
         intent: 'strength',
         href: '/submit?intent=strength',
+        badgeText: 'Signal check',
+        badgeColor: '#64748b',
         title: "See my research's strength",
-        subtitle: 'Benchmark your research',
-        featured: false,
-        img:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuDcl_ULqgmwjkZEQDo_Xz4qBLsVoxrqfl3daLHqKPdhf4-XZrwoktlHBbygSNy_4cu9_5LdnVV1TfJfjfm1H2y0YlNkeRKqMeH6FQ_qEyS7naZXAGui6YBUS3wGDp1gLKffS9Sm6tTiw-XhlXXHn8BUbfmGJTPHJd3ogzlCpIET0JfDarPzw5pwXJjobKId3L9dido5gtovXc_RcI2w1SF7p1dtkzc4_iueTaCjs-fZI9OBWrJMJG1tckA8xY15j1PCZCVexeHHRGYW',
+        description: 'Benchmark quality, defensibility, and investment confidence against market expectations.',
+        ctaText: 'Benchmark now',
+        gradient: 'gray',
+        imageUrl:
+          'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=900&q=80',
       },
       {
         intent: 'industry',
         href: '/submit?intent=industry',
-        title: 'Find industry/investor',
-        subtitle: 'Match research with real demand',
-        featured: false,
-        img:
-          'https://lh3.googleusercontent.com/aida-public/AB6AXuClHus9jfMYaSOO2J4U5HSTgh3aaNUutWCwSaAlsMBGNGN1r_w2fIRuTXj1iDQmcqZaRaa7GIZClUY23gYsrWEN8hZdgAA6nhUseTNiodRI3Mf-nEhb-iWJWf70R-mtO0opsucKQEPkymgGoLrya0-WWKKxT8a0OTmol8P_OkAUGxUKViNE-oqbUqQizIuoh1S8hkBALgIPegyR_zXtOxLOXfeeuIWbhsRo9x1zUfLp2agzAfCblejEuq3NBrdeFnndLB7LCdxIRT8c',
+        badgeText: 'Market fit',
+        badgeColor: '#8b5cf6',
+        title: 'Find industry/investor fit',
+        description: 'Match your paper with demand signals, investor interest, and strategic partner pathways.',
+        ctaText: 'Map demand',
+        gradient: 'purple',
+        imageUrl:
+          'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=900&q=80',
       },
     ],
     []
@@ -50,114 +81,105 @@ export default function Home() {
     const ctx = gsap.context(() => {
       const timeline = gsap.timeline({ defaults: { ease: 'power2.out' } });
       timeline
-        .from('.landing-intro', { y: 22, autoAlpha: 0, duration: 0.45 })
-        .from('.landing-subcopy', { y: 16, autoAlpha: 0, duration: 0.4 }, '-=0.2')
-        .from('.landing-card', { y: 20, duration: 0.42, stagger: 0.08 }, '-=0.08')
-        .from('.landing-cta', { y: 14, autoAlpha: 0, duration: 0.34 }, '-=0.26')
-        .from('.landing-strip', { y: 14, autoAlpha: 0, duration: 0.32 }, '-=0.2');
+        .from('.landing-intro', { y: 18, autoAlpha: 0, duration: 0.34 })
+        .from('.landing-title', { y: 16, autoAlpha: 0, duration: 0.38 }, '-=0.18')
+        .from('.landing-subcopy', { y: 12, autoAlpha: 0, duration: 0.32 }, '-=0.2')
+        .from('.landing-card', { y: 20, autoAlpha: 0, duration: 0.42, stagger: 0.08 }, '-=0.06')
+        .from('.landing-cta', { y: 12, autoAlpha: 0, duration: 0.3 }, '-=0.22');
     }, heroRef);
     return () => ctx.revert();
   }, [reducedMotion]);
 
-  return (
-    <div className="min-h-screen flex flex-col overflow-x-hidden">
-      <AppHeader />
+  const navigateWithPulse = (href: string, eventTarget?: HTMLElement | null) => {
+    const rect = eventTarget?.getBoundingClientRect();
+    if (typeof window !== 'undefined' && rect) {
+      window.dispatchEvent(
+        new CustomEvent('matdao:navigate', {
+          detail: {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+          },
+        })
+      );
+    }
+    window.setTimeout(() => router.push(href), reducedMotion ? 0 : 170);
+  };
 
-      <main className="flex-grow flex flex-col items-center justify-center px-5 sm:px-6 py-12 md:py-16 relative bg-black">
+  return (
+    <div className="min-h-screen flex flex-col overflow-x-hidden bg-black">
+      <AppHeader />
+      {!reducedMotion ? <WebGLShader /> : null}
+
+      <main className="flex-grow relative px-5 sm:px-6 py-12 md:py-16">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-b from-black via-black to-black" />
-          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[760px] h-[760px] bg-white/5 rounded-full blur-[140px]" />
-          <div className="floating-aurora absolute top-[18%] left-[16%] w-[260px] h-[260px] bg-[#6efcff]/10 rounded-full blur-[90px]" />
-          <div className="floating-aurora floating-aurora-delay absolute bottom-[12%] right-[14%] w-[300px] h-[300px] bg-cyan-400/10 rounded-full blur-[95px]" />
+          <div className="absolute inset-0 bg-black/72" />
+          <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[900px] bg-cyan-300/10 rounded-full blur-[150px]" />
+          <div className="absolute bottom-[-18%] right-[4%] w-[560px] h-[560px] bg-indigo-500/10 rounded-full blur-[160px]" />
         </div>
 
-        <div ref={heroRef} className="w-full max-w-6xl z-10">
-          <div className="text-center mb-10 md:mb-14" data-route-item>
+        <div ref={heroRef} className="relative z-10 w-full max-w-6xl mx-auto">
+          <div className="text-center mb-8 md:mb-10" data-route-item>
             <p className="landing-intro mb-4 inline-flex items-center rounded-full border border-[#6efcff]/35 bg-[#6efcff]/10 px-4 py-1 text-[11px] uppercase tracking-[0.18em] text-[#c5fdff]">
               4-Layer Scientific Due Diligence
             </p>
-            <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-on-surface mb-3">
-              Let us know your intention
+            <h1 className="landing-title font-headline text-4xl md:text-6xl font-extrabold tracking-tight text-white/95 mb-3">
+              Select your intention
             </h1>
-            <p className="landing-subcopy text-on-surface/40 font-body max-w-xl mx-auto text-base md:text-lg">
-              Select objective that best matches your current research phase.
+            <p className="landing-subcopy text-white/70 font-body max-w-2xl mx-auto text-sm md:text-lg">
+              Start from one pathway and we&apos;ll guide you from evidence extraction to decision-ready scoring.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 mb-12 md:mb-14 place-items-center">
-            {cards.map((c) => (
-              <AnimatedRouteLink
-                key={c.title}
-                href={c.href}
-                className={`landing-card group w-full max-w-[320px] md:w-[290px] focus-glow rounded-2xl transition-opacity ${
-                  activeIntent && activeIntent !== c.intent ? 'opacity-75' : 'opacity-100'
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 mb-12 md:mb-14" data-route-item>
+            {cards.map((card) => (
+              <button
+                key={card.intent}
+                type="button"
+                className={`landing-card group text-left focus-glow rounded-2xl ${
+                  activeIntent && activeIntent !== card.intent ? 'opacity-70' : 'opacity-100'
                 }`}
-                onMouseEnter={() => setActiveIntent(c.intent)}
-                onFocus={() => setActiveIntent(c.intent)}
-                onMouseLeave={() => setActiveIntent((prev) => (prev === c.intent ? null : prev))}
-                onBlur={() => setActiveIntent((prev) => (prev === c.intent ? null : prev))}
-                onClick={() => setActiveIntent(c.intent)}
+                onMouseEnter={() => setActiveIntent(card.intent)}
+                onFocus={() => setActiveIntent(card.intent)}
+                onMouseLeave={() => setActiveIntent((prev) => (prev === card.intent ? null : prev))}
+                onBlur={() => setActiveIntent((prev) => (prev === card.intent ? null : prev))}
+                onClick={(e) => navigateWithPulse(card.href, e.currentTarget)}
               >
-                <div
-                  className={`intent-card relative h-[210px] md:h-[220px] rounded-2xl overflow-hidden border bg-black/40 ${
-                    c.featured || activeIntent === c.intent ? 'intent-card--active' : 'intent-card--idle'
+                <GradientCard
+                  badgeText={card.badgeText}
+                  badgeColor={card.badgeColor}
+                  title={card.title}
+                  description={card.description}
+                  ctaText={card.ctaText}
+                  gradient={card.gradient}
+                  imageUrl={card.imageUrl}
+                  className={`h-[260px] md:h-[280px] transition-[border-color,box-shadow] duration-300 ${
+                    activeIntent === card.intent
+                      ? 'ring-1 ring-[#89fdff]/60 shadow-[0_0_36px_rgba(110,252,255,0.2)]'
+                      : 'ring-1 ring-white/10'
                   }`}
-                  style={{
-                    backgroundImage: `url(${c.img})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                  }}
-                >
-                  <div className="intent-card__shine" />
-                  <div className={`intent-card__pulse ${activeIntent === c.intent ? 'opacity-100' : 'opacity-0'}`} />
-                  {c.featured && c.badge ? (
-                    <div className="absolute top-3 left-3 rounded-full border border-[#6efcff]/50 bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-[#c5feff] backdrop-blur">
-                      {c.badge}
-                    </div>
-                  ) : null}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/10" />
-                  <div className="absolute inset-0 bg-black/10" />
-                  <div className="absolute bottom-0 left-0 right-0 p-5">
-                    <div
-                      className={`text-sm md:text-[15px] font-semibold ${
-                        c.featured || activeIntent === c.intent ? 'text-[#e9feff]' : 'text-white/95'
-                      }`}
-                    >
-                      {c.title}
-                    </div>
-                    <div
-                      className={`text-xs mt-1 ${
-                        c.featured || activeIntent === c.intent ? 'text-[#b6edf0]' : 'text-white/60'
-                      }`}
-                    >
-                      {c.subtitle}
-                    </div>
-                  </div>
-                </div>
-              </AnimatedRouteLink>
+                />
+              </button>
             ))}
           </div>
 
-          <div className="flex flex-col items-center" data-route-item>
+          <div className="flex flex-col items-center gap-5" data-route-item>
             <AnimatedRouteLink
               href={activeIntent ? `/submit?intent=${encodeURIComponent(activeIntent)}` : '/submit'}
-              className="landing-cta cta-premium focus-glow rounded-full border border-[#6efcff]/45 bg-[#6efcff]/15 px-10 sm:px-12 py-4 text-sm font-semibold text-[#d4feff] hover:bg-[#6efcff]/25 shadow-[0_0_20px_rgba(110,252,255,0.2)]"
+              className="landing-cta inline-flex"
             >
-              {activeIntent ? `Start ${activeIntent} flow` : 'Start Prototype Evaluation'}
+              <LiquidButton size="xl" className="text-white border rounded-full px-10">
+                {activeIntent ? `Continue with ${activeIntent}` : 'Start Prototype Evaluation'}
+              </LiquidButton>
             </AnimatedRouteLink>
-            <div className="landing-strip mt-6 grid w-full max-w-3xl grid-cols-1 sm:grid-cols-3 gap-3 text-left">
+
+            <div className="grid w-full max-w-3xl grid-cols-1 sm:grid-cols-3 gap-3 text-left">
               {[
                 { label: 'Layer 1', text: 'NLP extraction from paper evidence' },
                 { label: 'Layer 2', text: 'API enrichment from trusted sources' },
-                { label: 'Integrity', text: 'Dim9 fail triggers score reset to 0' },
+                { label: 'Integrity Gate', text: 'Dim9 = 1 forces total score to 0' },
               ].map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/55"
-                >
-                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#b8fcff]">
-                    {item.label}
-                  </div>
+                <div key={item.label} className="rounded-xl border border-white/15 bg-white/[0.04] px-4 py-3 text-xs text-white/70 backdrop-blur-sm">
+                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#b8fcff]">{item.label}</div>
                   <div>{item.text}</div>
                 </div>
               ))}
