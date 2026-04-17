@@ -224,8 +224,8 @@ h1, h2, h3, .tech-display, .headline-font {
     rgba(255, 191, 140, 0.58) 77%,
     rgba(110, 252, 255, 0.55) 100%
   );
-  filter: blur(20px);
-  opacity: 0.88;
+  filter: blur(18px);
+  opacity: 0.74;
   animation: light-string-drift 9s ease-in-out infinite;
 }
 
@@ -237,8 +237,8 @@ h1, h2, h3, .tech-display, .headline-font {
     rgba(255, 226, 198, 0.36) 79%,
     rgba(182, 248, 255, 0.26) 100%
   );
-  filter: blur(12px);
-  opacity: 0.76;
+  filter: blur(11px);
+  opacity: 0.62;
   animation: light-string-drift 8s ease-in-out infinite reverse;
 }
 
