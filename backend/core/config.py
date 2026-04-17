@@ -16,6 +16,58 @@ class Settings(BaseSettings):
     serpapi_api_key: str = Field(default="", alias="SERPAPI_API_KEY")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    llm_fallback_order: str = Field(
+        default="gemini,glm,openrouter,qwen,kimi,minimax,liquid",
+        alias="LLM_FALLBACK_ORDER",
+    )
+    llm_provider_timeout_seconds: int = Field(
+        default=120,
+        alias="LLM_PROVIDER_TIMEOUT_SECONDS",
+    )
+    llm_adaptive_routing_enabled: bool = Field(
+        default=True,
+        alias="LLM_ADAPTIVE_ROUTING_ENABLED",
+    )
+    llm_complexity_low_chars: int = Field(
+        default=3500,
+        alias="LLM_COMPLEXITY_LOW_CHARS",
+    )
+    llm_complexity_high_chars: int = Field(
+        default=9000,
+        alias="LLM_COMPLEXITY_HIGH_CHARS",
+    )
+    openrouter_api_key: str = Field(default="", alias="OPENROUTER_API_KEY")
+    openrouter_api_url: str = Field(
+        default="https://openrouter.ai/api/v1/chat/completions",
+        alias="OPENROUTER_API_URL",
+    )
+    openrouter_models: str = Field(
+        default=(
+            "nousresearch/hermes-3-llama-3.1-405b:free,"
+            "openai/gpt-oss-120b:free,"
+            "google/gemma-4-31b-it:free,"
+            "nvidia/nemotron-3-nano-30b-a3b:free"
+        ),
+        alias="OPENROUTER_MODELS",
+    )
+    openrouter_reasoning_enabled: bool = Field(default=True, alias="OPENROUTER_REASONING_ENABLED")
+    openrouter_site_url: str = Field(default="", alias="OPENROUTER_SITE_URL")
+    openrouter_site_name: str = Field(default="", alias="OPENROUTER_SITE_NAME")
+    kimi_api_key: str = Field(default="", alias="KIMI_API_KEY")
+    kimi_base_url: str = Field(default="https://api.moonshot.cn/v1", alias="KIMI_BASE_URL")
+    kimi_model: str = Field(default="kimi-k2-latest", alias="KIMI_MODEL")
+    minimax_api_key: str = Field(default="", alias="MINIMAX_API_KEY")
+    minimax_base_url: str = Field(default="", alias="MINIMAX_BASE_URL")
+    minimax_model: str = Field(default="", alias="MINIMAX_MODEL")
+    liquid_ai_api_key: str = Field(default="", alias="LIQUID_AI_API_KEY")
+    liquid_ai_base_url: str = Field(default="", alias="LIQUID_AI_BASE_URL")
+    liquid_ai_model: str = Field(default="", alias="LIQUID_AI_MODEL")
+    qwen_api_key: str = Field(default="", alias="QWEN_API_KEY")
+    qwen_base_url: str = Field(
+        default="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        alias="QWEN_BASE_URL",
+    )
+    qwen_model: str = Field(default="qwen-plus", alias="QWEN_MODEL")
     evaluation_text_max_chars: int = Field(default=12000, alias="EVALUATION_TEXT_MAX_CHARS")
     theme_search_results_per_source: int = Field(default=5, alias="THEME_SEARCH_RESULTS_PER_SOURCE")
     max_parallel_evaluations: int = Field(default=2, alias="MAX_PARALLEL_EVALUATIONS")

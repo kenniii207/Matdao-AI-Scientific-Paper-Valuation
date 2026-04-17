@@ -12,12 +12,56 @@ services:
           property: connectionString
       - key: ZAI_API_KEY
         sync: false
+      - key: GEMINI_API_KEY
+        sync: false
       - key: OPENALEX_API_KEY
         sync: false
       - key: SEMANTIC_SCHOLAR_API_KEY
         sync: false
       - key: SERPAPI_API_KEY
         sync: false
+      - key: LLM_FALLBACK_ORDER
+        value: "gemini,glm,openrouter,qwen,kimi,minimax,liquid"
+      - key: LLM_PROVIDER_TIMEOUT_SECONDS
+        value: "120"
+      - key: LLM_ADAPTIVE_ROUTING_ENABLED
+        value: "true"
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_API_URL
+        value: "https://openrouter.ai/api/v1/chat/completions"
+      - key: OPENROUTER_MODELS
+        value: "nousresearch/hermes-3-llama-3.1-405b:free,openai/gpt-oss-120b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3-nano-30b-a3b:free"
+      - key: OPENROUTER_REASONING_ENABLED
+        value: "true"
+      - key: OPENROUTER_SITE_URL
+        sync: false
+      - key: OPENROUTER_SITE_NAME
+        value: "MatDAO"
+      - key: KIMI_API_KEY
+        sync: false
+      - key: KIMI_BASE_URL
+        value: "https://api.moonshot.cn/v1"
+      - key: KIMI_MODEL
+        value: "kimi-k2-latest"
+      - key: MINIMAX_API_KEY
+        sync: false
+      - key: MINIMAX_BASE_URL
+        sync: false
+      - key: MINIMAX_MODEL
+        sync: false
+      - key: LIQUID_AI_API_KEY
+        sync: false
+      - key: LIQUID_AI_BASE_URL
+        sync: false
+      - key: LIQUID_AI_MODEL
+        sync: false
+      - key: QWEN_API_KEY
+        sync: false
+      - key: QWEN_BASE_URL
+        value: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      - key: QWEN_MODEL
+        value: "qwen-plus"
       - key: ENABLE_EXTERNAL_API_CACHE
         value: "true"
       - key: ENABLE_CURATED_CACHE
@@ -30,6 +74,8 @@ services:
         value: "cpu"
       - key: LOCAL_MODEL_CACHE_DIR
         value: "/root/.cache/huggingface"
+      - key: LOCAL_MODEL_LOAD_TIMEOUT_SECONDS
+        value: "8"
     disk:
       name: falcon-model-cache
       mountPath: /root/.cache/huggingface

@@ -55,6 +55,11 @@ async def root():
     return {"service": "matdao-backend", "status": "ok", "health": "/health"}
 
 
+@app.head("/")
+async def root_head():
+    return JSONResponse(status_code=200, content=None)
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "version": "0.1.0"}

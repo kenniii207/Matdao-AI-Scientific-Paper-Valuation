@@ -159,3 +159,113 @@ async def test_evaluate_content_marks_hard_failure_when_all_providers_fail(monke
     assert result["_quality_signals"]["llm_hard_failure"] is True
     assert result["_quality_signals"]["llm_provider"] == "none"
     assert "provider_errors" in result["_quality_signals"]
+
+
+@pytest.mark.asyncio
+async def test_evaluate_content_uses_openrouter_fallback_from_order(monkeypatch):
+    monkeypatch.setattr(
+        evaluation_service.settings,
+        "llm_fallback_order",
+        "gemini,openrouter,glm",
+    )
+    monkeypatch.setattr(evaluation_service.settings, "gemini_api_key", "test-gemini")
+    monkeypatch.setattr(evaluation_service.settings, "openrouter_api_key", "test-openrouter")
+    evaluator = evaluation_service.ScientificEvaluator()
+
+    async def fake_gemini(_prompt: str):
+        return {"error": "gemini_503"}
+
+    async def fake_openrouter(_prompt: str):
+        return {
+            "scores": {
+                str(idx): {"score": 4.1, "rationale": f"R{idx}", "origin_snippet": f"S{idx}"}
+                for idx in range(1, 10)
+            },
+            "insight": "OpenRouter fallback produced structured evidence-linked output for this paper.",
+        }
+
+    monkeypatch.setattr(evaluator, "_evaluate_with_gemini", fake_gemini)
+    monkeypatch.setattr(evaluator, "_evaluate_with_openrouter", fake_openrouter)
+
+    result = await evaluator.evaluate_content("paper text", {"document_profile": {"title": "T"}})
+    assert result["_quality_signals"]["llm_provider"] == "openrouter_fallback"
+    assert result["scores"]["1"]["score"] == 4.1
+    assert result["_quality_signals"]["provider_errors"]["gemini"] == "gemini_503"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_content_uses_qwen_fallback_from_order(monkeypatch):
+    monkeypatch.setattr(
+        evaluation_service.settings,
+        "llm_fallback_order",
+        "gemini,qwen,glm",
+    )
+    monkeypatch.setattr(evaluation_service.settings, "gemini_api_key", "test-gemini")
+    monkeypatch.setattr(evaluation_service.settings, "qwen_api_key", "test-qwen")
+    evaluator = evaluation_service.ScientificEvaluator()
+
+    async def fake_gemini(_prompt: str):
+        return {"error": "gemini_503"}
+
+    async def fake_qwen(_prompt: str):
+        return {
+            "scores": {
+                str(idx): {"score": 4.0, "rationale": f"R{idx}", "origin_snippet": f"S{idx}"}
+                for idx in range(1, 10)
+            },
+            "insight": "Qwen fallback produced structured evidence-linked output for this paper.",
+        }
+
+    monkeypatch.setattr(evaluator, "_evaluate_with_gemini", fake_gemini)
+    monkeypatch.setattr(evaluator, "_evaluate_with_qwen", fake_qwen)
+
+    result = await evaluator.evaluate_content("paper text", {"document_profile": {"title": "T"}})
+    assert result["_quality_signals"]["llm_provider"] == "qwen_fallback"
+    assert result["scores"]["1"]["score"] == 4.0
+    assert result["_quality_signals"]["provider_errors"]["gemini"] == "gemini_503"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_content_adaptive_routing_prefers_qwen_for_low_complexity(monkeypatch):
+    monkeypatch.setattr(evaluation_service.settings, "llm_adaptive_routing_enabled", True)
+    monkeypatch.setattr(
+        evaluation_service.settings,
+        "llm_fallback_order",
+        "gemini,glm,openrouter,qwen",
+    )
+    evaluator = evaluation_service.ScientificEvaluator()
+    call_order: list[str] = []
+
+    async def fake_fail(name: str):
+        async def _inner(_prompt: str):
+            call_order.append(name)
+            return {"error": f"{name}_failed"}
+        return _inner
+
+    async def fake_qwen(_prompt: str):
+        call_order.append("qwen")
+        return {
+            "scores": {
+                str(idx): {"score": 3.9, "rationale": f"R{idx}", "origin_snippet": f"S{idx}"}
+                for idx in range(1, 10)
+            },
+            "insight": "Low complexity routing selected qwen first.",
+        }
+
+    monkeypatch.setattr(evaluator, "_evaluate_with_gemini", await fake_fail("gemini"))
+    monkeypatch.setattr(evaluator, "_evaluate_with_glm", await fake_fail("glm"))
+    monkeypatch.setattr(evaluator, "_evaluate_with_openrouter", await fake_fail("openrouter"))
+    monkeypatch.setattr(evaluator, "_evaluate_with_qwen", fake_qwen)
+
+    result = await evaluator.evaluate_content(
+        "Short abstract about a catalyst.",
+        {
+            "document_profile": {"title": "T"},
+            "source_errors": {"openalex": "timeout"},
+        },
+    )
+    assert call_order == ["qwen"]
+    assert result["_quality_signals"]["llm_provider"] == "qwen"
+    routing = result["_quality_signals"]["provider_routing"]
+    assert routing["complexity_band"] == "low"
+    assert routing["effective_order"][0] == "qwen"

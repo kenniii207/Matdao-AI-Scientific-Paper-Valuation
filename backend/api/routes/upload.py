@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import fitz  # PyMuPDF
 
 from backend.db.session import get_session, async_session_factory
-from backend.db.models import ResearchPaper, ExtractionLayer
+from backend.db.models import ResearchPaper, ExtractionLayer, ScoringResultDB
 from backend.core.config import settings
 from backend.core.json_utils import coerce_jsonable
 from backend.api.adapters.glm_ocr_adapter import GLMOCRAdapter
@@ -130,6 +130,70 @@ def _assess_low_confidence(
         "confidence_score": confidence_score,
         "reasons": sorted(set(reasons)),
     }
+
+
+def _is_neutral_nine_grid(score_row: Any) -> bool:
+    dim_values = [
+        _safe_float(getattr(score_row, f"dim{index}_score", None), 3.0)
+        for index in range(1, 10)
+    ]
+    near_neutral = sum(1 for value in dim_values if abs(value - 3.0) <= 0.02)
+    return near_neutral >= 8
+
+
+def _should_rerun_existing_score(
+    score_row: Any,
+    eval_results: dict[str, Any] | None,
+) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    eval_payload = eval_results if isinstance(eval_results, dict) else {}
+    quality_signals = eval_payload.get("_quality_signals")
+    quality_signals = quality_signals if isinstance(quality_signals, dict) else {}
+
+    if quality_signals.get("llm_hard_failure"):
+        reasons.append("llm_hard_failure")
+    if quality_signals.get("insufficient_evidence"):
+        reasons.append("insufficient_evidence")
+    if quality_signals.get("pipeline_timed_out"):
+        reasons.append("pipeline_timed_out")
+    if eval_payload.get("error"):
+        reasons.append("eval_error")
+    if _safe_float(getattr(score_row, "total_score", None), 0.0) <= 60.05 and _is_neutral_nine_grid(score_row):
+        reasons.append("flat_neutral_score")
+    scored_by = str(getattr(score_row, "scored_by", "") or "").lower()
+    if "timeout" in scored_by:
+        reasons.append("timeout_scoring_version")
+
+    high_value_reasons = {
+        "llm_hard_failure",
+        "insufficient_evidence",
+        "pipeline_timed_out",
+        "eval_error",
+        "flat_neutral_score",
+        "timeout_scoring_version",
+    }
+    should_rerun = bool(high_value_reasons.intersection(reasons))
+    return should_rerun, sorted(set(reasons))
+
+
+async def _latest_eval_results_for_paper(
+    session: AsyncSession,
+    paper_id: uuid.UUID,
+) -> dict[str, Any]:
+    layers = (
+        await session.scalars(
+            select(ExtractionLayer)
+            .where(ExtractionLayer.paper_id == paper_id)
+            .order_by(ExtractionLayer.created_at.desc())
+            .limit(15)
+        )
+    ).all()
+    for layer in layers:
+        processed = layer.processed_data if isinstance(layer.processed_data, dict) else {}
+        maybe_eval = processed.get("eval_results")
+        if isinstance(maybe_eval, dict):
+            return maybe_eval
+    return {}
 
 
 async def _evaluate_and_score(paper_id: str) -> None:
@@ -375,8 +439,6 @@ async def upload_pdf(
         select(ResearchPaper).where(ResearchPaper.matdao_id == file_hash)
     )
     if existing_paper:
-        from backend.db.models import ScoringResultDB
-
         existing_score = await session.scalar(
             select(ScoringResultDB)
             .where(ScoringResultDB.paper_id == existing_paper.id)
@@ -384,19 +446,27 @@ async def upload_pdf(
             .limit(1)
         )
         if existing_score is not None:
-            return {
-                "status": "success",
-                "doi": existing_paper.doi,
-                "filename": file.filename,
-                "score": existing_score.total_score,
-                "grade": existing_score.grade,
-                "eval_summary": None,
-                "paper_id": str(existing_paper.id),
-                "deduplicated": True,
-                "message": "File already exists. Reusing latest scoring result.",
-            }
-        # Paper exists but no scoring record (previous run failed or still processing).
-        # Continue pipeline to generate scoring instead of returning a false-success.
+            existing_eval_results = await _latest_eval_results_for_paper(session, existing_paper.id)
+            should_rerun, rerun_reasons = _should_rerun_existing_score(existing_score, existing_eval_results)
+            if should_rerun:
+                logger.info(
+                    "Re-running evaluation for paper_id=%s due to reasons=%s",
+                    existing_paper.id,
+                    rerun_reasons,
+                )
+            else:
+                return {
+                    "status": "success",
+                    "doi": existing_paper.doi,
+                    "filename": file.filename,
+                    "score": existing_score.total_score,
+                    "grade": existing_score.grade,
+                    "eval_summary": None,
+                    "paper_id": str(existing_paper.id),
+                    "deduplicated": True,
+                    "message": "File already exists. Reusing latest scoring result.",
+                }
+        # Paper exists with stale/low-quality score or no score. Continue pipeline to regenerate.
         paper = existing_paper
     else:
         # Create record
@@ -408,6 +478,38 @@ async def upload_pdf(
         session.add(paper)
         await session.commit()
         await session.refresh(paper)
+
+    if existing_paper and existing_score is not None:
+        # Ensure the existing score isn't returned again by `_evaluate_and_score` early-exit.
+        # Delete stale/latest scoring rows for this paper and regenerate fresh output.
+        stale_rows = (
+            await session.scalars(
+                select(ScoringResultDB).where(ScoringResultDB.paper_id == paper.id)
+            )
+        ).all()
+        for stale_row in stale_rows:
+            await session.delete(stale_row)
+        await session.commit()
+
+    if existing_paper and existing_score is not None and should_rerun:
+        existing_processing_layer = await session.scalar(
+            select(ExtractionLayer)
+            .where(
+                ExtractionLayer.paper_id == paper.id,
+                ExtractionLayer.status.in_(["queued", "processing"]),
+            )
+            .order_by(ExtractionLayer.created_at.desc())
+            .limit(1)
+        )
+        if existing_processing_layer is not None:
+            return {
+                "status": "queued",
+                "doi": paper.doi,
+                "filename": file.filename,
+                "paper_id": str(paper.id),
+                "deduplicated": True,
+                "message": "File already exists and is currently being re-evaluated.",
+            }
 
     layer = ExtractionLayer(
         paper_id=paper.id,

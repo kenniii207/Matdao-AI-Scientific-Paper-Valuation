@@ -179,6 +179,147 @@ class ScientificEvaluator:
     def __init__(self):
         self.api_key = settings.zai_api_key
         self.api_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+        self.provider_timeout = max(30, int(settings.llm_provider_timeout_seconds))
+
+    @staticmethod
+    def _parse_csv(value: str) -> list[str]:
+        return [item.strip() for item in (value or "").split(",") if item.strip()]
+
+    def _provider_sequence(self) -> list[str]:
+        configured = [item.lower() for item in self._parse_csv(settings.llm_fallback_order)]
+        if not configured:
+            configured = ["gemini", "glm", "openrouter"]
+        deduped: list[str] = []
+        seen: set[str] = set()
+        for item in configured:
+            if item in seen:
+                continue
+            seen.add(item)
+            deduped.append(item)
+        return deduped
+
+    @staticmethod
+    def _metadata_complexity_markers(metadata: Dict[str, Any]) -> int:
+        markers = 0
+        source_errors = metadata.get("source_errors", {}) if isinstance(metadata, dict) else {}
+        curated = metadata.get("similar_papers_curated", []) if isinstance(metadata, dict) else []
+        if isinstance(source_errors, dict) and len(source_errors) == 0:
+            markers += 1
+        if isinstance(curated, list) and len(curated) >= 5:
+            markers += 1
+        document_profile = metadata.get("document_profile", {}) if isinstance(metadata, dict) else {}
+        if isinstance(document_profile, dict):
+            keywords = document_profile.get("keywords")
+            if isinstance(keywords, list) and len(keywords) >= 6:
+                markers += 1
+        return markers
+
+    def _infer_complexity_band(self, text_content: str, metadata: Dict[str, Any]) -> str:
+        text = str(text_content or "")
+        text_len = len(text)
+        text_lower = text.lower()
+        method_terms = (
+            "method", "methods", "ablation", "dataset", "evaluation", "experiment",
+            "randomized", "trial", "statistical", "p-value", "supplementary"
+        )
+        method_hits = sum(1 for term in method_terms if term in text_lower)
+        metadata_markers = self._metadata_complexity_markers(metadata)
+
+        if text_len >= int(settings.llm_complexity_high_chars) or method_hits >= 4 or metadata_markers >= 2:
+            return "high"
+        if text_len <= int(settings.llm_complexity_low_chars) and method_hits <= 1 and metadata_markers == 0:
+            return "low"
+        return "medium"
+
+    def _apply_adaptive_routing(
+        self,
+        providers: list[str],
+        text_content: str,
+        metadata: Dict[str, Any],
+    ) -> tuple[list[str], str]:
+        if not settings.llm_adaptive_routing_enabled:
+            return providers, "disabled"
+
+        band = self._infer_complexity_band(text_content, metadata)
+        if band == "high":
+            preferred = ["gemini", "qwen", "glm", "openrouter", "kimi", "minimax", "liquid"]
+        elif band == "low":
+            preferred = ["qwen", "openrouter", "gemini", "glm", "kimi", "minimax", "liquid"]
+        else:
+            preferred = ["gemini", "qwen", "openrouter", "glm", "kimi", "minimax", "liquid"]
+
+        rank = {provider: index for index, provider in enumerate(preferred)}
+        ordered = sorted(
+            providers,
+            key=lambda provider: (rank.get(provider, 999), providers.index(provider)),
+        )
+        return ordered, band
+
+    async def _evaluate_with_openai_compatible(
+        self,
+        *,
+        provider_name: str,
+        api_key: str,
+        base_url: str,
+        model: str,
+        prompt: str,
+    ) -> Dict[str, Any]:
+        clean_key = (api_key or "").strip()
+        clean_base = (base_url or "").strip().rstrip("/")
+        clean_model = (model or "").strip()
+        if not clean_key or not clean_base or not clean_model:
+            return {"error": f"{provider_name}_not_configured", "provider": provider_name}
+
+        url = clean_base if clean_base.endswith("/chat/completions") else f"{clean_base}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {clean_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": clean_model,
+            "messages": [
+                {"role": "system", "content": "You are a highly critical scientific analyst."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"},
+        }
+
+        async with httpx.AsyncClient(timeout=float(self.provider_timeout)) as client:
+            for attempt in range(1, 3):
+                try:
+                    resp = await client.post(url, headers=headers, json=payload)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    content = (
+                        data.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "")
+                    )
+                    if not content:
+                        raise ValueError(f"{provider_name} returned empty content")
+                    parsed = json.loads(content) if isinstance(content, str) else content
+                    if isinstance(parsed, dict):
+                        parsed["_provider"] = provider_name
+                    return parsed if isinstance(parsed, dict) else {"error": "invalid_payload", "provider": provider_name}
+                except httpx.HTTPStatusError as exc:
+                    status = exc.response.status_code if exc.response else None
+                    retryable = status in {429, 500, 502, 503, 504}
+                    if retryable and attempt < 2:
+                        await asyncio.sleep(0.8 * attempt)
+                        continue
+                    logger.error("%s evaluation failed with status %s: %s", provider_name.upper(), status, exc)
+                    return {
+                        "error": f"{provider_name}_http_{status}",
+                        "provider": provider_name,
+                        "status_code": status,
+                    }
+                except Exception as exc:
+                    if attempt < 2:
+                        await asyncio.sleep(0.5 * attempt)
+                        continue
+                    logger.error("%s evaluation failed: %s", provider_name.upper(), exc)
+                    return {"error": str(exc), "provider": provider_name}
 
     async def _evaluate_with_gemini(self, prompt: str) -> Dict[str, Any]:
         api_key = settings.gemini_api_key
@@ -195,7 +336,7 @@ class ScientificEvaluator:
             },
         }
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=float(self.provider_timeout)) as client:
             for attempt in range(1, 3):
                 try:
                     resp = await client.post(url, headers={"x-goog-api-key": api_key}, json=payload)
@@ -233,51 +374,108 @@ class ScientificEvaluator:
                     return {"error": str(exc), "provider": "gemini"}
 
     async def _evaluate_with_glm(self, prompt: str) -> Dict[str, Any]:
-        if not self.api_key:
-            return {"error": "glm_not_configured", "provider": "glm"}
+        return await self._evaluate_with_openai_compatible(
+            provider_name="glm",
+            api_key=self.api_key,
+            base_url=self.api_url,
+            model="glm-4",
+            prompt=prompt,
+        )
 
-        async with httpx.AsyncClient(timeout=90.0) as client:
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": "glm-4",
-                "messages": [
-                    {"role": "system", "content": "You are a highly critical scientific analyst."},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.1,
-                "response_format": {"type": "json_object"}
-            }
-            for attempt in range(1, 3):
+    async def _evaluate_with_openrouter(self, prompt: str) -> Dict[str, Any]:
+        api_key = (settings.openrouter_api_key or "").strip()
+        if not api_key:
+            return {"error": "openrouter_not_configured", "provider": "openrouter"}
+
+        url = (settings.openrouter_api_url or "https://openrouter.ai/api/v1/chat/completions").strip()
+        models = self._parse_csv(settings.openrouter_models)
+        if not models:
+            return {"error": "openrouter_models_missing", "provider": "openrouter"}
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        if settings.openrouter_site_url.strip():
+            headers["HTTP-Referer"] = settings.openrouter_site_url.strip()
+        if settings.openrouter_site_name.strip():
+            headers["X-OpenRouter-Title"] = settings.openrouter_site_name.strip()
+
+        async with httpx.AsyncClient(timeout=float(self.provider_timeout)) as client:
+            model_errors: dict[str, str] = {}
+            for model in models:
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": "You are a highly critical scientific analyst."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.1,
+                    "response_format": {"type": "json_object"},
+                }
+                if settings.openrouter_reasoning_enabled:
+                    payload["reasoning"] = {"enabled": True}
                 try:
-                    resp = await client.post(self.api_url, headers=headers, json=payload)
+                    resp = await client.post(url, headers=headers, json=payload)
                     resp.raise_for_status()
                     data = resp.json()
-                    content = data["choices"][0]["message"]["content"]
-                    parsed = json.loads(content)
+                    content = (
+                        data.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content", "")
+                    )
+                    if not content:
+                        raise ValueError("openrouter_empty_content")
+                    parsed = json.loads(content) if isinstance(content, str) else content
                     if isinstance(parsed, dict):
-                        parsed["_provider"] = "glm"
-                    return parsed
-                except httpx.HTTPStatusError as exc:
-                    status = exc.response.status_code if exc.response else None
-                    retryable = status in {429, 500, 502, 503, 504}
-                    if retryable and attempt < 2:
-                        await asyncio.sleep(0.8 * attempt)
-                        continue
-                    logger.error("GLM evaluation failed with status %s: %s", status, exc)
-                    return {
-                        "error": f"glm_http_{status}",
-                        "provider": "glm",
-                        "status_code": status,
-                    }
+                        parsed["_provider"] = "openrouter"
+                        parsed["_model"] = model
+                        return parsed
+                    model_errors[model] = "invalid_json_payload"
                 except Exception as exc:
-                    if attempt < 2:
-                        await asyncio.sleep(0.5 * attempt)
-                        continue
-                    logger.error("GLM evaluation failed: %s", exc)
-                    return {"error": str(exc), "provider": "glm"}
+                    model_errors[model] = str(exc)
+                    continue
+            return {
+                "error": "openrouter_all_models_failed",
+                "provider": "openrouter",
+                "model_errors": model_errors,
+            }
+
+    async def _evaluate_with_kimi(self, prompt: str) -> Dict[str, Any]:
+        return await self._evaluate_with_openai_compatible(
+            provider_name="kimi",
+            api_key=settings.kimi_api_key,
+            base_url=settings.kimi_base_url,
+            model=settings.kimi_model,
+            prompt=prompt,
+        )
+
+    async def _evaluate_with_minimax(self, prompt: str) -> Dict[str, Any]:
+        return await self._evaluate_with_openai_compatible(
+            provider_name="minimax",
+            api_key=settings.minimax_api_key,
+            base_url=settings.minimax_base_url,
+            model=settings.minimax_model,
+            prompt=prompt,
+        )
+
+    async def _evaluate_with_liquid(self, prompt: str) -> Dict[str, Any]:
+        return await self._evaluate_with_openai_compatible(
+            provider_name="liquid",
+            api_key=settings.liquid_ai_api_key,
+            base_url=settings.liquid_ai_base_url,
+            model=settings.liquid_ai_model,
+            prompt=prompt,
+        )
+
+    async def _evaluate_with_qwen(self, prompt: str) -> Dict[str, Any]:
+        return await self._evaluate_with_openai_compatible(
+            provider_name="qwen",
+            api_key=settings.qwen_api_key,
+            base_url=settings.qwen_base_url,
+            model=settings.qwen_model,
+            prompt=prompt,
+        )
 
     def _validate_and_repair_schema(
         self,
@@ -504,27 +702,35 @@ class ScientificEvaluator:
         provider_errors: dict[str, str] = {}
         selected_result: Dict[str, Any] = {}
         selected_provider = "none"
+        base_sequence = self._provider_sequence()
+        sequence, complexity_band = self._apply_adaptive_routing(base_sequence, llm_text, metadata)
+        provider_runners = {
+            "gemini": self._evaluate_with_gemini,
+            "glm": self._evaluate_with_glm,
+            "openrouter": self._evaluate_with_openrouter,
+            "qwen": self._evaluate_with_qwen,
+            "kimi": self._evaluate_with_kimi,
+            "minimax": self._evaluate_with_minimax,
+            "liquid": self._evaluate_with_liquid,
+        }
 
-        if settings.gemini_api_key:
-            gemini_result = await self._evaluate_with_gemini(prompt)
-            if _has_structured_scores(gemini_result):
-                selected_result = gemini_result
-                selected_provider = "gemini"
-            else:
-                provider_errors["gemini"] = str(gemini_result.get("error") or "no_structured_scores")
-
-        if not selected_result and self.api_key:
-            glm_result = await self._evaluate_with_glm(prompt)
-            if _has_structured_scores(glm_result):
-                selected_result = glm_result
-                selected_provider = "glm" if not settings.gemini_api_key else "glm_fallback"
-            else:
-                provider_errors["glm"] = str(glm_result.get("error") or "no_structured_scores")
+        attempted = 0
+        for provider_name in sequence:
+            runner = provider_runners.get(provider_name)
+            if runner is None:
+                provider_errors[provider_name] = "unknown_provider"
+                continue
+            attempted += 1
+            provider_result = await runner(prompt)
+            if _has_structured_scores(provider_result):
+                selected_result = provider_result
+                selected_provider = provider_name if attempted == 1 else f"{provider_name}_fallback"
+                break
+            provider_errors[provider_name] = str(provider_result.get("error") or "no_structured_scores")
 
         if not selected_result:
-            if not settings.gemini_api_key and not self.api_key:
-                logger.error("No Gemini (GEMINI_API_KEY) or Zhipu/GLM (ZAI_API_KEY) key configured for evaluation.")
-                provider_errors["config"] = "llm_keys_missing"
+            if not provider_errors:
+                provider_errors["config"] = "llm_keys_missing_or_invalid_provider_order"
             selected_result = {
                 "error": "all_llm_providers_failed",
                 "_quality_signals": {
@@ -539,6 +745,12 @@ class ScientificEvaluator:
         if not isinstance(quality_signals, dict):
             quality_signals = {}
         quality_signals["provider_errors"] = provider_errors
+        quality_signals["provider_routing"] = {
+            "adaptive_enabled": bool(settings.llm_adaptive_routing_enabled),
+            "complexity_band": complexity_band,
+            "base_order": base_sequence,
+            "effective_order": sequence,
+        }
         repaired_result["_quality_signals"] = quality_signals
 
         llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)

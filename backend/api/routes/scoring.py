@@ -141,6 +141,39 @@ def _derive_investment_recommendation(
     return f"Tier D - Defer ({grade})"
 
 
+def _derive_confidence_tier(
+    scored_by: str | None,
+    eval_results: dict | None,
+) -> str:
+    eval_payload = eval_results if isinstance(eval_results, dict) else {}
+    quality_signals = eval_payload.get("_quality_signals")
+    quality_signals = quality_signals if isinstance(quality_signals, dict) else {}
+
+    if quality_signals.get("llm_hard_failure"):
+        return "FAILED (RETRY NEEDED)"
+    if quality_signals.get("insufficient_evidence"):
+        return "LOW (INSUFFICIENT_EVIDENCE)"
+    if quality_signals.get("pipeline_timed_out"):
+        return "LOW (PIPELINE_TIMEOUT)"
+
+    schema_repair_count = int(float(quality_signals.get("schema_repair_count") or 0.0))
+    if schema_repair_count >= 12:
+        return "LOW (HEAVY_REPAIR)"
+    if schema_repair_count >= 5:
+        return "MEDIUM (REPAIRED)"
+
+    provider = str(quality_signals.get("llm_provider") or "").lower().strip()
+    if provider in {"gemini", "glm", "glm_fallback"}:
+        return "HIGH (LLM_ENRICHED)"
+
+    scored_by_lower = str(scored_by or "").lower()
+    if "timeout" in scored_by_lower:
+        return "LOW (TIMEOUT_FALLBACK)"
+    if "llm" in scored_by_lower:
+        return "HIGH (LLM_ENRICHED)"
+    return "AUTOMATED"
+
+
 @router.post("/evaluate/{doi:path}")
 async def evaluate_scoring_for_doi(
     doi: str, session: AsyncSession = Depends(get_session)
@@ -358,7 +391,10 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
         "grade": row.grade,
         "integrity_gate_triggered": row.integrity_gate_triggered,
         "dimensions": dimensions,
-        "confidence_tier": "HIGH (FALCON-OCR)" if "llm" in (row.scored_by or "") else "AUTOMATED",
+        "confidence_tier": _derive_confidence_tier(
+            scored_by=row.scored_by,
+            eval_results=eval_results,
+        ),
         "insight": insight,
         "investor_fit": investor_fit,
         "warnings": warnings,
