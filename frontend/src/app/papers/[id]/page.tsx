@@ -1,14 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
+import anime from 'animejs';
 import AppHeader from '@/components/AppHeader';
 import { MetricCard } from '@/components/MetricCard';
 import AppFooter from '@/components/AppFooter';
 import { apiUrl, fetchWithTimeout } from '@/lib/api';
 import type { ScoringPendingResponse, ScoringResponse } from '@/lib/types/scoring';
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
+import { AnimatedRouteLink } from '@/components/AnimatedRouteLink';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -25,11 +28,14 @@ function formatDuration(totalSeconds: number) {
 export default function PaperResultsPage() {
   const { id } = useParams<{ id: string }>();
   const paperId = String(id);
+  const reducedMotion = usePrefersReducedMotion();
   const [data, setData] = useState<ScoringResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [loadingStatus, setLoadingStatus] = useState('Connecting to backend...');
+  const progressFillRef = useRef<HTMLDivElement | null>(null);
+  const loadingStageRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +131,34 @@ export default function PaperResultsPage() {
     return 2;
   }, [progressPercent]);
 
+  useEffect(() => {
+    if (!loading || !progressFillRef.current) return;
+    if (reducedMotion) {
+      progressFillRef.current.style.transform = `scaleX(${progressPercent / 100})`;
+      return;
+    }
+    anime.remove(progressFillRef.current);
+    anime({
+      targets: progressFillRef.current,
+      scaleX: progressPercent / 100,
+      duration: 820,
+      easing: 'easeOutCubic',
+    });
+  }, [progressPercent, loading, reducedMotion]);
+
+  useEffect(() => {
+    if (!loading || reducedMotion) return;
+    const node = loadingStageRefs.current[stageIndex];
+    if (!node) return;
+    anime.remove(node);
+    anime({
+      targets: node,
+      scale: [0.96, 1.03, 1],
+      duration: 360,
+      easing: 'easeOutCubic',
+    });
+  }, [stageIndex, loading, reducedMotion]);
+
   const dims = useMemo(() => {
     const arr = data?.dimensions || [];
     return arr
@@ -141,9 +175,18 @@ export default function PaperResultsPage() {
       <AppHeader />
 
       <main className="flex-grow lg:ml-0 p-4 sm:p-6 md:p-8 pt-5 md:pt-6 max-w-7xl mx-auto w-full">
-        {loading ? (
-          <section className="min-h-[70vh] flex items-center justify-center px-3 sm:px-6">
-            <div className="w-full max-w-3xl text-center">
+        <AnimatePresence mode="wait" initial={false}>
+          {loading ? (
+          <motion.section
+            key="loading"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: reducedMotion ? 0 : 0.28, ease: 'easeOut' }}
+            className="min-h-[70vh] flex items-center justify-center px-3 sm:px-6"
+            data-route-item
+          >
+            <div className="w-full max-w-3xl text-center" data-route-item>
               <h1 className="font-headline text-4xl md:text-5xl font-extrabold text-white/80 tracking-tight mb-3">
                 Analyzing your research
               </h1>
@@ -153,8 +196,12 @@ export default function PaperResultsPage() {
 
               <div className="progress-shimmer w-full max-w-3xl mx-auto h-5 rounded-full border border-white/15 bg-white/5 overflow-hidden">
                 <div
+                  ref={progressFillRef}
                   className="h-full rounded-full transition-all duration-1000 bg-gradient-to-r from-[#57f3ff] via-[#9ff9ff] to-white shadow-[0_0_20px_rgba(87,243,255,0.45)]"
-                  style={{ width: `${progressPercent}%` }}
+                  style={{
+                    transform: `scaleX(${progressPercent / 100})`,
+                    transformOrigin: '0% 50%',
+                  }}
                 />
               </div>
               <div className="mt-3 flex items-center justify-between text-xs text-white/45 max-w-3xl mx-auto">
@@ -172,6 +219,9 @@ export default function PaperResultsPage() {
                   return (
                     <div
                       key={stage}
+                      ref={(node) => {
+                        loadingStageRefs.current[index] = node;
+                      }}
                       className={`rounded-xl border px-4 py-3 text-sm transition-colors ${
                         isDone
                           ? 'border-[#6efcff]/40 bg-[#6efcff]/10 text-[#b8feff]'
@@ -195,9 +245,17 @@ export default function PaperResultsPage() {
                 </button>
               </div>
             </div>
-          </section>
+          </motion.section>
         ) : error ? (
-          <section className="min-h-[60vh] flex items-center justify-center p-6">
+          <motion.section
+            key="error"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: reducedMotion ? 0 : 0.24, ease: 'easeOut' }}
+            className="min-h-[60vh] flex items-center justify-center p-6"
+            data-route-item
+          >
             <div className="bg-surface-container rounded-xl p-10 border border-outline-variant/15 max-w-lg text-center">
               <div className="text-error mb-4 text-4xl">⚠️</div>
               <h2 className="font-headline text-xl font-extrabold mb-2">Audit failed</h2>
@@ -218,9 +276,17 @@ export default function PaperResultsPage() {
                 </button>
               </div>
             </div>
-          </section>
+          </motion.section>
         ) : data ? (
-          <section className="rounded-2xl overflow-hidden border border-white/10 bg-[#0b1020]">
+          <motion.section
+            key="results"
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reducedMotion ? 0 : 0.3, ease: 'easeOut' }}
+            className="rounded-2xl overflow-hidden border border-white/10 bg-[#0b1020]"
+            data-route-item
+          >
             <div className="bg-black/70 backdrop-blur-sm px-6 md:px-10 py-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-5 space-y-6">
@@ -329,12 +395,12 @@ export default function PaperResultsPage() {
                       <div className="text-white/35 text-sm">
                         We need more information to improve accuracy
                       </div>
-                      <Link
+                      <AnimatedRouteLink
                         href="/upsell"
                         className="focus-glow cta-premium inline-flex items-center justify-center gap-2 rounded-xl border border-[#6efcff]/30 bg-[#6efcff]/10 px-5 py-3 text-sm font-semibold text-white/80 hover:bg-[#6efcff]/15"
                       >
                         Improve Accuracy <span aria-hidden>→</span>
-                      </Link>
+                      </AnimatedRouteLink>
                     </div>
                   </div>
 
@@ -344,8 +410,9 @@ export default function PaperResultsPage() {
                 </div>
               </div>
             </div>
-          </section>
+          </motion.section>
         ) : null}
+        </AnimatePresence>
       </main>
 
       <AppFooter />

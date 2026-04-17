@@ -1,12 +1,16 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import gsap from 'gsap';
 import AppFooter from '@/components/AppFooter';
 import AppHeader from '@/components/AppHeader';
+import { AnimatedRouteLink } from '@/components/AnimatedRouteLink';
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 
 export default function Home() {
   const [activeIntent, setActiveIntent] = useState<string | null>(null);
+  const heroRef = useRef<HTMLDivElement | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
   const cards = useMemo(
     () => [
       {
@@ -41,6 +45,20 @@ export default function Home() {
     []
   );
 
+  useEffect(() => {
+    if (reducedMotion || !heroRef.current) return;
+    const ctx = gsap.context(() => {
+      const timeline = gsap.timeline({ defaults: { ease: 'power2.out' } });
+      timeline
+        .from('.landing-intro', { y: 22, autoAlpha: 0, duration: 0.45 })
+        .from('.landing-subcopy', { y: 16, autoAlpha: 0, duration: 0.4 }, '-=0.2')
+        .from('.landing-card', { y: 28, autoAlpha: 0, duration: 0.48, stagger: 0.08 }, '-=0.08')
+        .from('.landing-cta', { y: 14, autoAlpha: 0, duration: 0.34 }, '-=0.26')
+        .from('.landing-strip', { y: 14, autoAlpha: 0, duration: 0.32 }, '-=0.2');
+    }, heroRef);
+    return () => ctx.revert();
+  }, [reducedMotion]);
+
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden">
       <AppHeader />
@@ -53,26 +71,33 @@ export default function Home() {
           <div className="floating-aurora floating-aurora-delay absolute bottom-[12%] right-[14%] w-[300px] h-[300px] bg-cyan-400/10 rounded-full blur-[95px]" />
         </div>
 
-        <div className="w-full max-w-6xl z-10">
-          <div className="text-center mb-10 md:mb-14">
+        <div ref={heroRef} className="w-full max-w-6xl z-10">
+          <div className="text-center mb-10 md:mb-14" data-route-item>
+            <p className="landing-intro mb-4 inline-flex items-center rounded-full border border-[#6efcff]/35 bg-[#6efcff]/10 px-4 py-1 text-[11px] uppercase tracking-[0.18em] text-[#c5fdff]">
+              4-Layer Scientific Due Diligence
+            </p>
             <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-on-surface mb-3">
               Let us know your intention
             </h1>
-            <p className="text-on-surface/40 font-body max-w-xl mx-auto text-base md:text-lg">
+            <p className="landing-subcopy text-on-surface/40 font-body max-w-xl mx-auto text-base md:text-lg">
               Select objective that best matches your current research phase.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-10 mb-12 md:mb-14 place-items-center">
             {cards.map((c) => (
-              <Link
+              <AnimatedRouteLink
                 key={c.title}
                 href={c.href}
-                className="group w-full max-w-[320px] md:w-[290px] focus-glow rounded-2xl"
+                className={`landing-card group w-full max-w-[320px] md:w-[290px] focus-glow rounded-2xl transition-opacity ${
+                  activeIntent && activeIntent !== c.intent ? 'opacity-75' : 'opacity-100'
+                }`}
                 onMouseEnter={() => setActiveIntent(c.intent)}
                 onFocus={() => setActiveIntent(c.intent)}
                 onMouseLeave={() => setActiveIntent((prev) => (prev === c.intent ? null : prev))}
                 onBlur={() => setActiveIntent((prev) => (prev === c.intent ? null : prev))}
+                onClick={() => setActiveIntent(c.intent)}
+                data-route-item
               >
                 <div
                   className={`intent-card interactive-lift relative h-[210px] md:h-[220px] rounded-2xl overflow-hidden border bg-black/40 ${
@@ -102,17 +127,34 @@ export default function Home() {
                     <div className="text-xs text-white/50 mt-1">{c.subtitle}</div>
                   </div>
                 </div>
-              </Link>
+              </AnimatedRouteLink>
             ))}
           </div>
 
-          <div className="flex flex-col items-center">
-            <Link
+          <div className="flex flex-col items-center" data-route-item>
+            <AnimatedRouteLink
               href={activeIntent ? `/submit?intent=${encodeURIComponent(activeIntent)}` : '/submit'}
-              className="cta-premium focus-glow rounded-full border border-[#6efcff]/45 bg-[#6efcff]/15 px-10 sm:px-12 py-4 text-sm font-semibold text-[#d4feff] hover:bg-[#6efcff]/25 shadow-[0_0_20px_rgba(110,252,255,0.2)]"
+              className="landing-cta cta-premium focus-glow rounded-full border border-[#6efcff]/45 bg-[#6efcff]/15 px-10 sm:px-12 py-4 text-sm font-semibold text-[#d4feff] hover:bg-[#6efcff]/25 shadow-[0_0_20px_rgba(110,252,255,0.2)]"
             >
               {activeIntent ? `Start ${activeIntent} flow` : 'Start Prototype Evaluation'}
-            </Link>
+            </AnimatedRouteLink>
+            <div className="landing-strip mt-6 grid w-full max-w-3xl grid-cols-1 sm:grid-cols-3 gap-3 text-left">
+              {[
+                { label: 'Layer 1', text: 'NLP extraction from paper evidence' },
+                { label: 'Layer 2', text: 'API enrichment from trusted sources' },
+                { label: 'Integrity', text: 'Dim9 fail triggers score reset to 0' },
+              ].map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/55"
+                >
+                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#b8fcff]">
+                    {item.label}
+                  </div>
+                  <div>{item.text}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </main>

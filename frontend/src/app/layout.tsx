@@ -2,6 +2,8 @@
 import type { Metadata } from 'next';
 import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
+import RoutePulseOverlay from '@/components/RoutePulseOverlay';
+import RouteTransitionShell from '@/components/RouteTransitionShell';
 
 export const metadata: Metadata = {
   title: 'MatDAO — Scientific Paper Due Diligence',
@@ -34,7 +36,8 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.variable} ${plusJakarta.variable} min-h-screen antialiased bg-surface-container-lowest text-on-surface`}>
-        {children}
+        <RoutePulseOverlay />
+        <RouteTransitionShell>{children}</RouteTransitionShell>
       </body>
     </html>
   );

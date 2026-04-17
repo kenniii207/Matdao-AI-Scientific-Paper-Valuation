@@ -1,10 +1,13 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import anime from 'animejs';
+import gsap from 'gsap';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import AppFooter from '@/components/AppFooter';
 import { apiUrl, fetchWithTimeout } from '@/lib/api';
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 
 type UploadState = 'idle' | 'uploading' | 'error';
 type UploadPhase = 'idle' | 'uploading' | 'processing' | 'finalizing' | 'error';
@@ -34,8 +37,12 @@ export default function SubmitClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const intent = searchParams.get('intent');
+  const reducedMotion = usePrefersReducedMotion();
 
+  const shellRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadStageRef = useRef<HTMLDivElement | null>(null);
+  const phaseRefs = useRef<Array<HTMLDivElement | null>>([]);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [uploadPhase, setUploadPhase] = useState<UploadPhase>('idle');
   const [message, setMessage] = useState<string>('');
@@ -59,6 +66,49 @@ export default function SubmitClient() {
   const uploadPhaseIndex =
     uploadPhase === 'uploading' ? 1 : uploadPhase === 'processing' ? 2 : uploadPhase === 'finalizing' ? 3 : 0;
   const uploadProgress = uploadPhase === 'uploading' ? 34 : uploadPhase === 'processing' ? 73 : uploadPhase === 'finalizing' ? 100 : 0;
+
+  useEffect(() => {
+    if (reducedMotion || !shellRef.current) return;
+    const ctx = gsap.context(() => {
+      gsap.fromTo(
+        '[data-submit-item]',
+        { y: 16, autoAlpha: 0 },
+        { y: 0, autoAlpha: 1, duration: 0.45, ease: 'power2.out', stagger: 0.07 }
+      );
+    }, shellRef);
+    return () => ctx.revert();
+  }, [reducedMotion]);
+
+  useEffect(() => {
+    if (reducedMotion || uploadState !== 'uploading' || !uploadStageRef.current) return;
+    const stageNode = uploadStageRef.current;
+    anime.remove(stageNode);
+    const pulse = anime({
+      targets: stageNode,
+      scale: [1, 1.008, 1],
+      opacity: [1, 0.92, 1],
+      duration: 900,
+      easing: 'easeInOutSine',
+      loop: true,
+    });
+    return () => {
+      pulse.pause();
+      anime.remove(stageNode);
+    };
+  }, [uploadState, reducedMotion]);
+
+  useEffect(() => {
+    if (reducedMotion || uploadState !== 'uploading' || uploadPhaseIndex <= 0) return;
+    const activeNode = phaseRefs.current[uploadPhaseIndex - 1];
+    if (!activeNode) return;
+    anime.remove(activeNode);
+    anime({
+      targets: activeNode,
+      scale: [0.96, 1.035, 1],
+      duration: 380,
+      easing: 'easeOutCubic',
+    });
+  }, [uploadPhaseIndex, uploadState, reducedMotion]);
 
   const uploadFile = async (file: File) => {
     setUploadState('uploading');
@@ -101,7 +151,14 @@ export default function SubmitClient() {
       await new Promise((resolve) => setTimeout(resolve, 500));
       setUploadPhase('finalizing');
       setMessage('Packaging result view...');
-      await new Promise((resolve) => setTimeout(resolve, 320));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('matdao:navigate', {
+            detail: { x: window.innerWidth / 2, y: window.innerHeight / 2 },
+          })
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, reducedMotion ? 110 : 320));
       router.push(`/papers/${encodeURIComponent(String(paperId))}`);
     } catch (err) {
       setUploadState('error');
@@ -115,11 +172,11 @@ export default function SubmitClient() {
       <AppHeader />
 
       <main className="flex-grow flex items-center justify-center px-5 sm:px-6 py-10 md:py-16">
-        <div className="w-full max-w-4xl text-center">
-          <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-white/85 mb-2">
+        <div ref={shellRef} className="w-full max-w-4xl text-center">
+          <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-white/85 mb-2" data-route-item data-submit-item>
             {headline}
           </h1>
-          <p className="text-white/35 text-sm md:text-lg mb-8 md:mb-10">{helper}</p>
+          <p className="text-white/35 text-sm md:text-lg mb-8 md:mb-10" data-route-item data-submit-item>{helper}</p>
 
           <div
             className={`interactive-lift mx-auto w-full max-w-3xl rounded-2xl border px-5 sm:px-6 md:px-10 py-9 md:py-12 transition-colors ${
@@ -127,6 +184,8 @@ export default function SubmitClient() {
                 ? 'border-[#6efcff]/40 bg-[#6efcff]/5'
                 : 'border-white/15 bg-black/30'
             }`}
+            data-route-item
+            data-submit-item
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
@@ -140,7 +199,10 @@ export default function SubmitClient() {
               </div>
 
               {uploadState === 'uploading' ? (
-                <div className="w-full max-w-xl upload-stage rounded-xl border border-[#6efcff]/30 bg-[#6efcff]/10 px-4 py-4 mb-6">
+                <div
+                  ref={uploadStageRef}
+                  className="w-full max-w-xl upload-stage rounded-xl border border-[#6efcff]/30 bg-[#6efcff]/10 px-4 py-4 mb-6 will-change-transform"
+                >
                   <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-[#b7fbff]/85">
                     <span>Pipeline Active</span>
                     <span>{uploadProgress}%</span>
@@ -152,6 +214,9 @@ export default function SubmitClient() {
                     {['Upload', 'Process', 'Finalize'].map((phase, idx) => (
                       <div
                         key={phase}
+                        ref={(node) => {
+                          phaseRefs.current[idx] = node;
+                        }}
                         className={`rounded-md border px-2 py-2 text-center transition-colors ${
                           uploadPhaseIndex > idx
                             ? 'border-[#6efcff]/45 bg-[#6efcff]/14 text-[#c9fdff]'
@@ -219,6 +284,8 @@ export default function SubmitClient() {
 
           <div className="mt-8 md:mt-10 flex flex-col items-center gap-4">
             <button
+              data-route-item
+              data-submit-item
               type="button"
               className={`focus-glow cta-premium rounded-full px-9 sm:px-12 py-4 text-sm font-semibold ${
                 primaryIntent
