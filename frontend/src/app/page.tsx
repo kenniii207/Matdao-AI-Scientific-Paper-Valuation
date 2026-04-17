@@ -112,7 +112,7 @@ export default function Home() {
 
       <main className="flex-grow relative px-5 sm:px-6 py-12 md:py-16">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute inset-0 bg-black/72" />
+          <div className="absolute inset-0 bg-black/50" />
           <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[900px] bg-cyan-300/10 rounded-full blur-[150px]" />
           <div className="absolute bottom-[-18%] right-[4%] w-[560px] h-[560px] bg-indigo-500/10 rounded-full blur-[160px]" />
         </div>
@@ -152,10 +152,10 @@ export default function Home() {
                   ctaText={card.ctaText}
                   gradient={card.gradient}
                   imageUrl={card.imageUrl}
-                  className={`h-[260px] md:h-[280px] transition-[border-color,box-shadow] duration-300 ${
+                  className={`h-[260px] md:h-[280px] transition-all duration-500 ease-out delay-75 ${
                     activeIntent === card.intent
-                      ? 'ring-1 ring-[#89fdff]/60 shadow-[0_0_36px_rgba(110,252,255,0.2)]'
-                      : 'ring-1 ring-white/10'
+                      ? 'ring-1 ring-[#89fdff]/30 shadow-[0_8px_32px_rgba(110,252,255,0.08)]'
+                      : 'ring-1 ring-white/5'
                   }`}
                 />
               </button>

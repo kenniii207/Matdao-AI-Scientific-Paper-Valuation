@@ -46,7 +46,15 @@ const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
     };
 
     return (
-      <motion.div variants={cardAnimation} initial="rest" whileHover="hover" animate="rest" className="h-full" ref={ref}>
+      <motion.div 
+        variants={cardAnimation} 
+        initial="rest" 
+        whileHover="hover" 
+        animate="rest" 
+        className="h-full" 
+        ref={ref}
+        transition={{ type: 'spring', stiffness: 100, damping: 20 }}
+      >
         <div className={cn(cardVariants({ gradient }), className)} {...props}>
           <motion.img
             src={imageUrl}

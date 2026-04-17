@@ -52,16 +52,21 @@ export function WebGLShader() {
 
       void main() {
         vec2 p = (gl_FragCoord.xy * 2.0 - resolution) / min(resolution.x, resolution.y);
-        float d = length(p) * distortion;
-        float rx = p.x * (1.0 + d);
-        float gx = p.x;
-        float bx = p.x * (1.0 - d);
-
-        float r = 0.05 / abs(p.y + sin((rx + time) * xScale) * yScale);
-        float g = 0.05 / abs(p.y + sin((gx + time) * xScale) * yScale);
-        float b = 0.05 / abs(p.y + sin((bx + time) * xScale) * yScale);
-
-        gl_FragColor = vec4(r, g, b, 1.0);
+        
+        float t = time * 0.3;
+        
+        // Flowing distortion
+        p.x += sin(t * 0.7 + p.y * 2.5) * 0.4;
+        p.y += cos(t * 0.5 + p.x * 2.0) * 0.4;
+        
+        float r = 0.06 / abs(p.y + sin((p.x + t) * 1.5) * 0.4);
+        float g = 0.06 / abs(p.y + sin((p.x + t * 1.2) * 1.6) * 0.4);
+        float b = 0.06 / abs(p.y + sin((p.x + t * 1.4) * 1.7) * 0.4);
+        
+        // Flowing cyan-indigo aesthetic themes
+        vec3 color = vec3(r * 0.2, g * 0.6, b * 0.9);
+        
+        gl_FragColor = vec4(color, 1.0);
       }
     `;
 
