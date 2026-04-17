@@ -52,7 +52,7 @@ export default function Home() {
       timeline
         .from('.landing-intro', { y: 22, autoAlpha: 0, duration: 0.45 })
         .from('.landing-subcopy', { y: 16, autoAlpha: 0, duration: 0.4 }, '-=0.2')
-        .from('.landing-card', { y: 28, autoAlpha: 0, duration: 0.48, stagger: 0.08 }, '-=0.08')
+        .from('.landing-card', { y: 20, duration: 0.42, stagger: 0.08 }, '-=0.08')
         .from('.landing-cta', { y: 14, autoAlpha: 0, duration: 0.34 }, '-=0.26')
         .from('.landing-strip', { y: 14, autoAlpha: 0, duration: 0.32 }, '-=0.2');
     }, heroRef);
@@ -97,13 +97,10 @@ export default function Home() {
                 onMouseLeave={() => setActiveIntent((prev) => (prev === c.intent ? null : prev))}
                 onBlur={() => setActiveIntent((prev) => (prev === c.intent ? null : prev))}
                 onClick={() => setActiveIntent(c.intent)}
-                data-route-item
               >
                 <div
-                  className={`intent-card interactive-lift relative h-[210px] md:h-[220px] rounded-2xl overflow-hidden border bg-black/40 ${
-                    c.featured || activeIntent === c.intent
-                      ? 'border-[#6efcff]/45 shadow-[0_0_28px_rgba(110,252,255,0.2)] group-hover:shadow-[0_0_36px_rgba(110,252,255,0.3)]'
-                      : 'border-white/10 group-hover:border-white/20'
+                  className={`intent-card relative h-[210px] md:h-[220px] rounded-2xl overflow-hidden border bg-black/40 ${
+                    c.featured || activeIntent === c.intent ? 'intent-card--active' : 'intent-card--idle'
                   }`}
                   style={{
                     backgroundImage: `url(${c.img})`,
@@ -121,10 +118,20 @@ export default function Home() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/10" />
                   <div className="absolute inset-0 bg-black/10" />
                   <div className="absolute bottom-0 left-0 right-0 p-5">
-                    <div className={`text-sm md:text-[15px] font-semibold ${c.featured ? 'text-[#dcfeff]' : 'text-white'}`}>
+                    <div
+                      className={`text-sm md:text-[15px] font-semibold ${
+                        c.featured || activeIntent === c.intent ? 'text-[#e9feff]' : 'text-white/95'
+                      }`}
+                    >
                       {c.title}
                     </div>
-                    <div className="text-xs text-white/50 mt-1">{c.subtitle}</div>
+                    <div
+                      className={`text-xs mt-1 ${
+                        c.featured || activeIntent === c.intent ? 'text-[#b6edf0]' : 'text-white/60'
+                      }`}
+                    >
+                      {c.subtitle}
+                    </div>
                   </div>
                 </div>
               </AnimatedRouteLink>

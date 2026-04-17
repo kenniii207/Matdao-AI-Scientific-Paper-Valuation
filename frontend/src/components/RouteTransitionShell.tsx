@@ -20,8 +20,8 @@ export default function RouteTransitionShell({ children }: { children: ReactNode
       if (!targets || targets.length === 0) {
         gsap.fromTo(
           containerRef.current,
-          { autoAlpha: 0.65 },
-          { autoAlpha: 1, duration: 0.34, ease: 'power1.out' }
+          { y: 8 },
+          { y: 0, duration: 0.28, ease: 'power1.out' }
         );
         return;
       }
@@ -29,14 +29,14 @@ export default function RouteTransitionShell({ children }: { children: ReactNode
 
       gsap.fromTo(
         limitedTargets,
-        { autoAlpha: 0, y: 18 },
+        { y: 18, scale: 0.99 },
         {
-          autoAlpha: 1,
           y: 0,
+          scale: 1,
           duration: 0.52,
           ease: 'power2.out',
           stagger: 0.06,
-          clearProps: 'all',
+          clearProps: 'transform',
         }
       );
     }, containerRef);
