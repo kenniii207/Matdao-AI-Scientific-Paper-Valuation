@@ -192,6 +192,61 @@ h1, h2, h3, .tech-display, .headline-font {
   animation-delay: 1.8s;
 }
 
+@keyframes light-string-drift {
+  0%, 100% { transform: translate3d(-50%, 0, 0) rotate(-8deg) scale(1); }
+  50% { transform: translate3d(-50%, -8px, 0) rotate(-7deg) scale(1.015); }
+}
+
+.light-string-fallback {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  transition: opacity 0.35s ease;
+}
+
+.light-string-fallback__rainbow,
+.light-string-fallback__core {
+  position: absolute;
+  left: 50%;
+  top: 6%;
+  width: 182vw;
+  height: min(56vh, 560px);
+  border-radius: 9999px;
+  transform: translateX(-50%) rotate(-8deg);
+}
+
+.light-string-fallback__rainbow {
+  background: linear-gradient(
+    90deg,
+    rgba(110, 252, 255, 0.5) 0%,
+    rgba(230, 255, 255, 0.92) 48%,
+    rgba(255, 189, 132, 0.56) 77%,
+    rgba(110, 252, 255, 0.5) 100%
+  );
+  filter: blur(21px);
+  opacity: 0.74;
+  animation: light-string-drift 9s ease-in-out infinite;
+  -webkit-mask: radial-gradient(112% 126% at 50% 54%, transparent 56%, #000 62%, transparent 70%);
+  mask: radial-gradient(112% 126% at 50% 54%, transparent 56%, #000 62%, transparent 70%);
+}
+
+.light-string-fallback__core {
+  background: linear-gradient(
+    90deg,
+    rgba(190, 248, 255, 0.25) 0%,
+    rgba(255, 255, 255, 0.66) 48%,
+    rgba(255, 225, 199, 0.34) 79%,
+    rgba(180, 248, 255, 0.24) 100%
+  );
+  filter: blur(13px);
+  opacity: 0.68;
+  animation: light-string-drift 8s ease-in-out infinite reverse;
+  -webkit-mask: radial-gradient(112% 126% at 50% 54%, transparent 60%, #000 64%, transparent 71%);
+  mask: radial-gradient(112% 126% at 50% 54%, transparent 60%, #000 64%, transparent 71%);
+}
+
 @keyframes card-shine {
   from { transform: translateX(-120%); }
   to { transform: translateX(220%); }

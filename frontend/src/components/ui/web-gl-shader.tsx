@@ -1,18 +1,29 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import * as THREE from "three"
 
-export function WebGLShader() {
+type ShaderUniforms = {
+  resolution: THREE.IUniform<THREE.Vector2>
+  time: THREE.IUniform<number>
+  xScale: THREE.IUniform<number>
+  yScale: THREE.IUniform<number>
+  distortion: THREE.IUniform<number>
+}
+
+type SceneRefs = {
+  scene: THREE.Scene | null
+  camera: THREE.OrthographicCamera | null
+  renderer: THREE.WebGLRenderer | null
+  mesh: THREE.Mesh | null
+  uniforms: ShaderUniforms | null
+  animationId: number | null
+}
+
+export function WebGLShader({ disableShader = false }: { disableShader?: boolean }) {
+  const [fallbackMode, setFallbackMode] = useState(disableShader)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const sceneRef = useRef<{
-    scene: THREE.Scene | null
-    camera: THREE.OrthographicCamera | null
-    renderer: THREE.WebGLRenderer | null
-    mesh: THREE.Mesh | null
-    uniforms: any
-    animationId: number | null
-  }>({
+  const sceneRef = useRef<SceneRefs>({
     scene: null,
     camera: null,
     renderer: null,
@@ -22,10 +33,35 @@ export function WebGLShader() {
   })
 
   useEffect(() => {
-    if (!canvasRef.current) return
+    if (!canvasRef.current || disableShader) {
+      setFallbackMode(true)
+      return
+    }
 
     const canvas = canvasRef.current
     const { current: refs } = sceneRef
+    let isDisposed = false
+
+    const setFallback = () => {
+      if (!isDisposed) setFallbackMode(true)
+    }
+
+    const context =
+      canvas.getContext("webgl2", {
+        alpha: true,
+        antialias: false,
+        powerPreference: "default",
+      }) ||
+      canvas.getContext("webgl", {
+        alpha: true,
+        antialias: false,
+        powerPreference: "default",
+      })
+
+    if (!context) {
+      setFallback()
+      return
+    }
 
     const vertexShader = `
       attribute vec3 position;
@@ -44,57 +80,64 @@ export function WebGLShader() {
 
       void main() {
         vec2 p = (gl_FragCoord.xy * 2.0 - resolution) / min(resolution.x, resolution.y);
-        
         float d = length(p) * distortion;
-        
         float rx = p.x * (1.0 + d);
         float gx = p.x;
         float bx = p.x * (1.0 - d);
 
-        float r = 0.12 / abs(p.y + sin((rx + time) * xScale) * yScale);
-        float g = 0.12 / abs(p.y + sin((gx + time) * xScale) * yScale);
-        float b = 0.12 / abs(p.y + sin((bx + time) * xScale) * yScale);
-        
-        // High vibrancy for production visibility on all displays
+        // Clamp denominator so low-precision GPUs do not collapse to NaN/Inf.
+        float rDen = max(abs(p.y + sin((rx + time) * xScale) * yScale), 0.03);
+        float gDen = max(abs(p.y + sin((gx + time) * xScale) * yScale), 0.03);
+        float bDen = max(abs(p.y + sin((bx + time) * xScale) * yScale), 0.03);
+
+        float r = 0.12 / rDen;
+        float g = 0.12 / gDen;
+        float b = 0.12 / bDen;
+
         vec3 finalColor = vec3(r, g, b);
-        // Ensure some alpha even for dimmer parts to prevent invisible lines
         gl_FragColor = vec4(finalColor, clamp(max(max(r, g), b) * 3.0, 0.1, 1.0));
       }
     `
 
     const initScene = () => {
-      console.log('MatDAO: Initializing WebGL Shader...');
       refs.scene = new THREE.Scene()
-      refs.renderer = new THREE.WebGLRenderer({ 
-        canvas, 
-        alpha: true,
-        antialias: true,
-        powerPreference: 'high-performance'
-      })
+      try {
+        refs.renderer = new THREE.WebGLRenderer({
+          canvas,
+          context: context as WebGLRenderingContext | WebGL2RenderingContext,
+          alpha: true,
+          antialias: false,
+          powerPreference: "default",
+        })
+      } catch {
+        setFallback()
+        return false
+      }
       refs.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
       refs.renderer.setClearColor(0x000000, 0)
-      console.log('MatDAO: Renderer initialized');
 
-      refs.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, -1)
+      refs.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10)
+      refs.camera.position.z = 1
 
       refs.uniforms = {
-        resolution: { value: [window.innerWidth, window.innerHeight] },
+        resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
         time: { value: 0.0 },
         xScale: { value: 1.0 },
         yScale: { value: 0.5 },
         distortion: { value: 0.05 },
       }
 
-      const position = [
-        -1.0, -1.0, 0.0,
-         1.0, -1.0, 0.0,
-        -1.0,  1.0, 0.0,
-         1.0, -1.0, 0.0,
-        -1.0,  1.0, 0.0,
-         1.0,  1.0, 0.0,
-      ]
-
-      const positions = new THREE.BufferAttribute(new Float32Array(position), 3)
+      const positions = new THREE.BufferAttribute(
+        new Float32Array([
+          -1.0, -1.0, 0.0,
+           1.0, -1.0, 0.0,
+          -1.0,  1.0, 0.0,
+           1.0, -1.0, 0.0,
+          -1.0,  1.0, 0.0,
+           1.0,  1.0, 0.0,
+        ]),
+        3
+      )
       const geometry = new THREE.BufferGeometry()
       geometry.setAttribute("position", positions)
 
@@ -108,24 +151,14 @@ export function WebGLShader() {
 
       refs.mesh = new THREE.Mesh(geometry, material)
       refs.scene.add(refs.mesh)
-
-      handleResize()
+      setFallbackMode(false)
+      return true
     }
 
-    let lastLogTime = 0;
     const animate = (time: number) => {
       if (!refs.renderer || !refs.scene || !refs.camera || !refs.mesh || !refs.uniforms) return
-      
-      const currentTime = time * 0.001
-      refs.uniforms.time.value = currentTime
+      refs.uniforms.time.value = time * 0.001
       refs.renderer.render(refs.scene, refs.camera)
-      
-      // Every 5 seconds, log a heartbeat to production console for debugging
-      if (currentTime - lastLogTime > 5) {
-        console.log('MatDAO Shader: Heartbeat (Looping UI Animation)...');
-        lastLogTime = currentTime;
-      }
-      
       refs.animationId = requestAnimationFrame(animate)
     }
 
@@ -134,16 +167,27 @@ export function WebGLShader() {
       const width = window.innerWidth
       const height = window.innerHeight
       refs.renderer.setSize(width, height, false)
-      refs.uniforms.resolution.value = [width, height]
+      refs.uniforms.resolution.value.set(width, height)
     }
 
-    initScene()
-    refs.animationId = requestAnimationFrame(animate)
-    window.addEventListener("resize", handleResize)
+    const handleContextLost = (event: Event) => {
+      event.preventDefault()
+      setFallback()
+    }
+
+    canvas.addEventListener("webglcontextlost", handleContextLost, false)
+
+    if (initScene()) {
+      handleResize()
+      refs.animationId = requestAnimationFrame(animate)
+      window.addEventListener("resize", handleResize)
+    }
 
     return () => {
+      isDisposed = true
       if (refs.animationId) cancelAnimationFrame(refs.animationId)
       window.removeEventListener("resize", handleResize)
+      canvas.removeEventListener("webglcontextlost", handleContextLost)
       if (refs.mesh) {
         refs.scene?.remove(refs.mesh)
         refs.mesh.geometry.dispose()
@@ -153,14 +197,19 @@ export function WebGLShader() {
       }
       refs.renderer?.dispose()
     }
-  }, [])
+  }, [disableShader])
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="fixed top-0 left-0 w-full h-full block pointer-events-none z-[1]"
-      style={{ background: 'transparent', opacity: 0.99 }} // Slight opacity trick to force compositor layer
-    />
+    <div className="fixed inset-0 pointer-events-none z-[1]" aria-hidden="true">
+      <canvas
+        ref={canvasRef}
+        className={fallbackMode ? "hidden" : "h-full w-full block"}
+        style={{ background: "transparent", opacity: fallbackMode ? 0 : 0.99 }}
+      />
+      <div className={`light-string-fallback ${fallbackMode ? "opacity-100" : "opacity-35"}`}>
+        <div className="light-string-fallback__rainbow" />
+        <div className="light-string-fallback__core" />
+      </div>
+    </div>
   )
 }
-

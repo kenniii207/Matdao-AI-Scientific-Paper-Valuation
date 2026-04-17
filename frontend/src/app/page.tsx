@@ -111,7 +111,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col overflow-x-hidden bg-transparent relative">
       {/* Layer 2: Shader (Fixed behind everything) */}
-      {isMounted && !reducedMotion ? <WebGLShader /> : null}
+      {isMounted ? <WebGLShader disableShader={reducedMotion} /> : null}
 
       {/* Layer 3: Content */}
       <div className="relative z-20">
