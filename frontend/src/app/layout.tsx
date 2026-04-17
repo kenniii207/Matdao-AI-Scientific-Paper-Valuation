@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-page-custom-font */
 import type { Metadata } from 'next';
-import { Inter, Manrope } from 'next/font/google';
+import { Inter, Plus_Jakarta_Sans } from 'next/font/google';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -14,9 +14,9 @@ const inter = Inter({
   display: 'swap',
 });
 
-const manrope = Manrope({
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],
-  variable: '--font-manrope',
+  variable: '--font-plus-jakarta',
   display: 'swap',
 });
 
@@ -33,7 +33,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
         />
       </head>
-      <body className={`${inter.variable} ${manrope.variable} min-h-screen antialiased bg-surface-container-lowest text-on-surface`}>
+      <body className={`${inter.variable} ${plusJakarta.variable} min-h-screen antialiased bg-surface-container-lowest text-on-surface`}>
         {children}
       </body>
     </html>

@@ -48,11 +48,11 @@ module.exports = {
         },
       },
       fontFamily: {
-        display: ['Manrope', 'Inter', 'system-ui', 'sans-serif'],
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        headline: ['Manrope', 'Inter', 'system-ui', 'sans-serif'],
-        body: ['Inter', 'system-ui', 'sans-serif'],
-        label: ['Inter', 'system-ui', 'sans-serif'],
+        display: ['var(--font-plus-jakarta)', 'var(--font-inter)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        headline: ['var(--font-plus-jakarta)', 'var(--font-inter)', 'system-ui', 'sans-serif'],
+        body: ['var(--font-inter)', 'system-ui', 'sans-serif'],
+        label: ['var(--font-inter)', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         DEFAULT: '0.25rem',
