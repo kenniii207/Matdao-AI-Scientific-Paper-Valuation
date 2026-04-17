@@ -218,33 +218,31 @@ h1, h2, h3, .tech-display, .headline-font {
 }
 
 .light-string-fallback__rainbow {
-  background: linear-gradient(
-    90deg,
-    rgba(110, 252, 255, 0.5) 0%,
-    rgba(230, 255, 255, 0.92) 48%,
-    rgba(255, 189, 132, 0.56) 77%,
-    rgba(110, 252, 255, 0.5) 100%
+  background: radial-gradient(
+    116% 132% at 50% 56%,
+    transparent 55%,
+    rgba(110, 252, 255, 0.42) 60%,
+    rgba(245, 255, 255, 0.88) 62.2%,
+    rgba(255, 204, 164, 0.56) 65.5%,
+    transparent 72%
   );
-  filter: blur(21px);
-  opacity: 0.74;
+  filter: blur(14px);
+  opacity: 0.78;
   animation: light-string-drift 9s ease-in-out infinite;
-  -webkit-mask: radial-gradient(112% 126% at 50% 54%, transparent 56%, #000 62%, transparent 70%);
-  mask: radial-gradient(112% 126% at 50% 54%, transparent 56%, #000 62%, transparent 70%);
 }
 
 .light-string-fallback__core {
-  background: linear-gradient(
-    90deg,
-    rgba(190, 248, 255, 0.25) 0%,
-    rgba(255, 255, 255, 0.66) 48%,
-    rgba(255, 225, 199, 0.34) 79%,
-    rgba(180, 248, 255, 0.24) 100%
+  background: radial-gradient(
+    114% 130% at 50% 56%,
+    transparent 58.8%,
+    rgba(186, 247, 255, 0.3) 62%,
+    rgba(255, 255, 255, 0.7) 63.1%,
+    rgba(255, 220, 190, 0.34) 64.9%,
+    transparent 69.4%
   );
-  filter: blur(13px);
-  opacity: 0.68;
+  filter: blur(8px);
+  opacity: 0.72;
   animation: light-string-drift 8s ease-in-out infinite reverse;
-  -webkit-mask: radial-gradient(112% 126% at 50% 54%, transparent 60%, #000 64%, transparent 71%);
-  mask: radial-gradient(112% 126% at 50% 54%, transparent 60%, #000 64%, transparent 71%);
 }
 
 @keyframes card-shine {
