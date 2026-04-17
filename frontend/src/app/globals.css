@@ -192,6 +192,22 @@ h1, h2, h3, .tech-display, .headline-font {
   animation-delay: 1.8s;
 }
 
+.workflow-panel {
+  border: 1px solid rgba(189, 245, 255, 0.22);
+  background: linear-gradient(160deg, rgba(13, 22, 35, 0.86), rgba(9, 14, 24, 0.84));
+  backdrop-filter: blur(14px);
+  box-shadow:
+    0 18px 42px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.workflow-panel-muted {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(10, 16, 28, 0.74);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+}
+
 @keyframes light-string-drift {
   0%, 100% { transform: translate3d(-50%, 0, 0) rotate(-8deg) scale(1); }
   50% { transform: translate3d(-50%, -8px, 0) rotate(-7deg) scale(1.015); }
@@ -203,8 +219,8 @@ h1, h2, h3, .tech-display, .headline-font {
 }
 
 @keyframes light-string-breath {
-  0%, 100% { opacity: 0.62; filter: blur(10px) saturate(1.05); }
-  50% { opacity: 0.88; filter: blur(14px) saturate(1.22); }
+  0%, 100% { opacity: 0.46; filter: blur(10px) saturate(1.02); }
+  50% { opacity: 0.64; filter: blur(13px) saturate(1.12); }
 }
 
 .light-string-fallback {
@@ -229,15 +245,15 @@ h1, h2, h3, .tech-display, .headline-font {
 .light-string-fallback__rainbow {
   background: linear-gradient(
     90deg,
-    rgba(110, 252, 255, 0.55) 0%,
-    rgba(235, 255, 255, 0.92) 48%,
-    rgba(255, 191, 140, 0.58) 77%,
-    rgba(110, 252, 255, 0.55) 100%
+    rgba(110, 252, 255, 0.42) 0%,
+    rgba(225, 251, 255, 0.72) 48%,
+    rgba(255, 191, 140, 0.44) 77%,
+    rgba(110, 252, 255, 0.42) 100%
   );
   background-size: 220% 100%;
   will-change: transform, background-position, opacity, filter;
-  filter: blur(18px) saturate(1.12);
-  opacity: 0.74;
+  filter: blur(17px) saturate(1.08);
+  opacity: 0.56;
   animation:
     light-string-flow 6.2s linear infinite,
     light-string-drift 7.8s ease-in-out infinite,
@@ -247,15 +263,15 @@ h1, h2, h3, .tech-display, .headline-font {
 .light-string-fallback__core {
   background: linear-gradient(
     90deg,
-    rgba(190, 248, 255, 0.28) 0%,
-    rgba(255, 255, 255, 0.7) 48%,
-    rgba(255, 226, 198, 0.36) 79%,
-    rgba(182, 248, 255, 0.26) 100%
+    rgba(190, 248, 255, 0.2) 0%,
+    rgba(255, 255, 255, 0.52) 48%,
+    rgba(255, 226, 198, 0.26) 79%,
+    rgba(182, 248, 255, 0.2) 100%
   );
   background-size: 200% 100%;
   will-change: transform, background-position, opacity, filter;
-  filter: blur(11px) saturate(1.05);
-  opacity: 0.62;
+  filter: blur(10px) saturate(1);
+  opacity: 0.42;
   animation:
     light-string-flow 7.3s linear infinite reverse,
     light-string-drift 6.6s ease-in-out infinite reverse,

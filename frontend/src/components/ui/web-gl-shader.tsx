@@ -90,12 +90,12 @@ export function WebGLShader({ disableShader = false }: { disableShader?: boolean
         float gDen = max(abs(p.y + sin((gx + time) * xScale) * yScale), 0.03);
         float bDen = max(abs(p.y + sin((bx + time) * xScale) * yScale), 0.03);
 
-        float r = 0.12 / rDen;
-        float g = 0.12 / gDen;
-        float b = 0.12 / bDen;
+        float r = 0.09 / rDen;
+        float g = 0.09 / gDen;
+        float b = 0.09 / bDen;
 
         vec3 finalColor = vec3(r, g, b);
-        gl_FragColor = vec4(finalColor, clamp(max(max(r, g), b) * 3.0, 0.1, 1.0));
+        gl_FragColor = vec4(finalColor, clamp(max(max(r, g), b) * 2.2, 0.06, 0.78));
       }
     `
 
@@ -124,7 +124,7 @@ export function WebGLShader({ disableShader = false }: { disableShader?: boolean
         time: { value: 0.0 },
         xScale: { value: 1.15 },
         yScale: { value: 0.52 },
-        distortion: { value: 0.065 },
+        distortion: { value: 0.055 },
       }
 
       const positions = new THREE.BufferAttribute(
@@ -204,9 +204,9 @@ export function WebGLShader({ disableShader = false }: { disableShader?: boolean
       <canvas
         ref={canvasRef}
         className={fallbackMode ? "hidden" : "h-full w-full block"}
-        style={{ background: "transparent", opacity: fallbackMode ? 0 : 0.99 }}
+        style={{ background: "transparent", opacity: fallbackMode ? 0 : 0.82 }}
       />
-      <div className={`light-string-fallback motion-essential ${fallbackMode ? "opacity-100" : "opacity-55"}`}>
+      <div className={`light-string-fallback motion-essential ${fallbackMode ? "opacity-100" : "opacity-35"}`}>
         <div className="light-string-fallback__rainbow motion-essential" />
         <div className="light-string-fallback__core motion-essential" />
       </div>

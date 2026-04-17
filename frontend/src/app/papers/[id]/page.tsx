@@ -180,9 +180,9 @@ export default function PaperResultsPage() {
 
       <main className="flex-grow lg:ml-0 p-4 sm:p-6 md:p-8 pt-5 md:pt-6 max-w-7xl mx-auto w-full relative">
         <div className="absolute inset-0 pointer-events-none -z-10">
-          <div className="absolute inset-0 bg-black/70" />
-          <div className="absolute top-[-10%] left-[4%] w-[360px] h-[360px] bg-cyan-400/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-18%] right-[2%] w-[360px] h-[360px] bg-purple-500/10 rounded-full blur-[120px]" />
+          <div className="absolute inset-0 bg-black/[0.78]" />
+          <div className="absolute top-[-10%] left-[4%] w-[360px] h-[360px] bg-cyan-400/[0.06] rounded-full blur-[130px]" />
+          <div className="absolute bottom-[-18%] right-[2%] w-[360px] h-[360px] bg-purple-500/[0.06] rounded-full blur-[130px]" />
         </div>
         <AnimatePresence mode="wait" initial={false}>
           {loading ? (
@@ -195,7 +195,7 @@ export default function PaperResultsPage() {
             className="min-h-[70vh] flex items-center justify-center px-3 sm:px-6"
             data-route-item
           >
-            <div className="w-full max-w-3xl text-center" data-route-item>
+            <div className="workflow-panel w-full max-w-3xl text-center rounded-2xl px-6 sm:px-8 py-9" data-route-item>
               <h1 className="font-headline text-4xl md:text-5xl font-extrabold text-white/80 tracking-tight mb-3">
                 Analyzing your research
               </h1>
@@ -203,7 +203,7 @@ export default function PaperResultsPage() {
                 {loadingStatus}
               </p>
 
-              <div className="progress-shimmer w-full max-w-3xl mx-auto h-5 rounded-full border border-white/15 bg-white/5 overflow-hidden">
+              <div className="progress-shimmer w-full max-w-3xl mx-auto h-5 rounded-full border border-white/[0.2] bg-white/[0.08] overflow-hidden">
                 <div
                   ref={progressFillRef}
                   className="h-full rounded-full transition-all duration-1000 bg-gradient-to-r from-[#57f3ff] via-[#9ff9ff] to-white shadow-[0_0_20px_rgba(87,243,255,0.45)]"
@@ -235,8 +235,8 @@ export default function PaperResultsPage() {
                         isDone
                           ? 'border-[#6efcff]/40 bg-[#6efcff]/10 text-[#b8feff]'
                           : isActive
-                            ? 'border-white/30 bg-white/10 text-white/80'
-                            : 'border-white/10 bg-white/5 text-white/40'
+                            ? 'border-white/[0.3] bg-white/[0.12] text-white/80'
+                            : 'border-white/[0.12] bg-white/[0.06] text-white/40'
                       }`}
                     >
                       {stage}
@@ -247,7 +247,7 @@ export default function PaperResultsPage() {
 
               <div className="mt-10">
                 <button
-                  className="rounded-full border border-white/20 bg-white/5 px-8 sm:px-10 py-3 text-sm font-semibold text-white/60 cursor-not-allowed"
+                  className="rounded-full border border-white/[0.24] bg-white/[0.08] px-8 sm:px-10 py-3 text-sm font-semibold text-white/60 cursor-not-allowed"
                   disabled
                 >
                   Preparing your result
@@ -265,10 +265,10 @@ export default function PaperResultsPage() {
             className="min-h-[60vh] flex items-center justify-center p-6"
             data-route-item
           >
-            <div className="bg-surface-container rounded-xl p-10 border border-outline-variant/15 max-w-lg text-center">
+            <div className="workflow-panel rounded-xl p-10 max-w-lg text-center">
               <div className="text-error mb-4 text-4xl">⚠️</div>
               <h2 className="font-headline text-xl font-extrabold mb-2">Audit failed</h2>
-              <p className="text-on-surface-variant text-sm mb-6">{error}</p>
+              <p className="text-white/65 text-sm mb-6">{error}</p>
               <div className="flex gap-3 justify-center">
                 <Link
                   href="/submit"
@@ -278,7 +278,7 @@ export default function PaperResultsPage() {
                 </Link>
                 <button
                   type="button"
-                  className="px-6 py-3 border border-outline-variant/20 rounded-md text-on-surface-variant hover:bg-white/5"
+                  className="px-6 py-3 border border-white/[0.2] rounded-md text-white/70 hover:bg-white/[0.08]"
                   onClick={() => window.location.reload()}
                 >
                   Retry
@@ -293,13 +293,13 @@ export default function PaperResultsPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reducedMotion ? 0 : 0.3, ease: 'easeOut' }}
-            className="rounded-2xl overflow-hidden border border-white/10 bg-[#0b1020]"
+            className="rounded-2xl overflow-hidden border border-white/[0.16] bg-[#0b1120]/[0.92] shadow-[0_24px_46px_rgba(0,0,0,0.4)]"
             data-route-item
           >
-            <div className="bg-black/70 backdrop-blur-sm px-6 md:px-10 py-10">
+            <div className="bg-black/[0.52] backdrop-blur-sm px-6 md:px-10 py-10">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                 <div className="lg:col-span-5 space-y-6">
-                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
+                  <div className="interactive-lift workflow-panel-muted rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-1">Score:</div>
                     <div className="text-white/90 font-headline font-extrabold text-5xl">
                       {score} <span className="text-white/40 text-2xl">/ 100</span>
@@ -309,21 +309,21 @@ export default function PaperResultsPage() {
                     </div>
                   </div>
 
-                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
+                  <div className="interactive-lift workflow-panel-muted rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-3">Executive Summary:</div>
                     <div className="text-white/50 text-sm leading-relaxed">
                       {data.executive_summary || 'Summary not available for this run.'}
                     </div>
                   </div>
 
-                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
+                  <div className="interactive-lift workflow-panel-muted rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-3">Investment Recommendation:</div>
                     <div className="inline-flex items-center rounded-full border border-[#6efcff]/40 bg-[#6efcff]/10 px-3 py-1 text-xs font-semibold text-[#b3feff]">
                       {data.investment_recommendation || data.grade || 'Pending'}
                     </div>
                   </div>
 
-                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
+                  <div className="interactive-lift workflow-panel-muted rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-3">Insight:</div>
                     <div className="text-white/50 text-sm leading-relaxed">
                       {data.insight ||
@@ -333,7 +333,7 @@ export default function PaperResultsPage() {
                     </div>
                   </div>
 
-                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
+                  <div className="interactive-lift workflow-panel-muted rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-3">Investor Fit:</div>
                     <ul className="space-y-2 text-white/60 text-sm">
                       {(data.investor_fit?.length
@@ -348,7 +348,7 @@ export default function PaperResultsPage() {
                     </ul>
                   </div>
 
-                  <div className="interactive-lift border border-white/10 bg-black/30 rounded-xl p-5 md:p-6">
+                  <div className="interactive-lift workflow-panel-muted rounded-xl p-5 md:p-6">
                     <div className="text-white/60 text-sm mb-3">Warnings:</div>
                     <ul className="space-y-2 text-white/60 text-sm">
                       {((data.warnings?.length
@@ -367,7 +367,7 @@ export default function PaperResultsPage() {
                 </div>
 
                 <div className="lg:col-span-7">
-                  <div className="interactive-lift border border-white/10 bg-black/25 rounded-xl p-5 md:p-6">
+                  <div className="interactive-lift workflow-panel-muted rounded-xl p-5 md:p-6">
                     <motion.div 
                       className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
                       initial="hidden"

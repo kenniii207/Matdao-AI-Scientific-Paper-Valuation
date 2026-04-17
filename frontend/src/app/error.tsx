@@ -17,7 +17,7 @@ export default function GlobalError({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black p-6">
-      <div className="bg-[#0b1020] rounded-xl p-10 border border-red-500/20 max-w-lg text-center shadow-[0_0_40px_rgba(255,0,0,0.1)]">
+      <div className="workflow-panel rounded-xl p-10 border-red-500/[0.2] max-w-lg text-center shadow-[0_0_40px_rgba(255,0,0,0.1)]">
         <div className="text-red-400 mb-4 text-4xl">⚠️</div>
         <h2 className="font-headline text-2xl font-extrabold text-white mb-2">Platform Error</h2>
         <p className="text-white/60 text-sm mb-6">

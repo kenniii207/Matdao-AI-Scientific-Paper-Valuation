@@ -176,9 +176,9 @@ export default function SubmitClient() {
 
       <main className="flex-grow flex items-center justify-center px-5 sm:px-6 py-10 md:py-16 relative">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute inset-0 bg-black/70" />
-          <div className="absolute top-[-14%] left-[10%] w-[420px] h-[420px] bg-cyan-400/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-20%] right-[8%] w-[420px] h-[420px] bg-indigo-500/10 rounded-full blur-[130px]" />
+          <div className="absolute inset-0 bg-black/[0.78]" />
+          <div className="absolute top-[-14%] left-[10%] w-[420px] h-[420px] bg-cyan-400/[0.06] rounded-full blur-[135px]" />
+          <div className="absolute bottom-[-20%] right-[8%] w-[420px] h-[420px] bg-indigo-500/[0.06] rounded-full blur-[145px]" />
         </div>
         <div ref={shellRef} className="w-full max-w-4xl text-center relative z-10">
           <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-white/85 mb-2" data-route-item data-submit-item>
@@ -187,10 +187,10 @@ export default function SubmitClient() {
           <p className="text-white/35 text-sm md:text-lg mb-8 md:mb-10" data-route-item data-submit-item>{helper}</p>
 
           <div
-            className={`interactive-lift mx-auto w-full max-w-3xl rounded-2xl border px-5 sm:px-6 md:px-10 py-9 md:py-12 transition-colors ${
+            className={`interactive-lift mx-auto w-full max-w-3xl rounded-2xl px-5 sm:px-6 md:px-10 py-9 md:py-12 transition-colors ${
               uploadState === 'uploading'
-                ? 'border-[#6efcff]/40 bg-[#6efcff]/5'
-                : 'border-white/15 bg-black/30'
+                ? 'workflow-panel border-[#8efcff]/40 bg-[#0d1f2f]/[0.84]'
+                : 'workflow-panel'
             }`}
             data-route-item
             data-submit-item
@@ -264,7 +264,7 @@ export default function SubmitClient() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="focus-glow cta-premium rounded-full border border-white/20 bg-white/5 px-8 py-2.5 text-sm font-medium text-white/70 hover:bg-white/10 disabled:opacity-50"
+                className="focus-glow cta-premium rounded-full border border-white/[0.24] bg-white/[0.08] px-8 py-2.5 text-sm font-medium text-white/[0.78] hover:bg-white/[0.14] disabled:opacity-50"
                 disabled={uploadState === 'uploading'}
               >
                 {uploadState === 'uploading' ? 'Processing…' : 'Upload file'}
@@ -297,8 +297,8 @@ export default function SubmitClient() {
               type="button"
               className={`focus-glow cta-premium rounded-full px-9 sm:px-12 py-4 text-sm font-semibold ${
                 primaryIntent
-                  ? 'border border-[#6efcff]/45 bg-[#6efcff]/15 text-[#d1feff] shadow-[0_0_20px_rgba(110,252,255,0.24)] hover:bg-[#6efcff]/25'
-                  : 'border border-white/20 bg-white/5 text-white/80 hover:bg-white/10'
+                  ? 'border border-[#6efcff]/45 bg-[#6efcff]/[0.13] text-[#d1feff] shadow-[0_0_20px_rgba(110,252,255,0.18)] hover:bg-[#6efcff]/20'
+                  : 'border border-white/[0.24] bg-white/[0.08] text-white/80 hover:bg-white/[0.14]'
               }`}
               onClick={() => fileInputRef.current?.click()}
               disabled={uploadState === 'uploading'}

@@ -55,26 +55,31 @@ export default function ExpertReviewPage({ params }: PageProps) {
   );
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-black">
       <AppHeader />
 
-      <main className="flex-grow px-6 py-12 max-w-4xl mx-auto w-full">
+      <main className="flex-grow px-6 py-12 max-w-4xl mx-auto w-full relative">
+        <div className="absolute inset-0 pointer-events-none -z-10">
+          <div className="absolute inset-0 bg-black/[0.78]" />
+          <div className="absolute top-[-10%] left-[8%] w-[360px] h-[360px] bg-cyan-400/[0.06] rounded-full blur-[130px]" />
+          <div className="absolute bottom-[-16%] right-[6%] w-[360px] h-[360px] bg-indigo-500/[0.06] rounded-full blur-[130px]" />
+        </div>
         <div className="mb-8 flex items-center justify-between">
           <Link
             href={`/papers/${encodeURIComponent(paperId)}`}
-            className="inline-flex items-center gap-2 text-on-surface-variant hover:text-primary-fixed transition-colors"
+            className="inline-flex items-center gap-2 text-white/60 hover:text-[#97fdff] transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Dashboard
           </Link>
-          <span className="text-xs font-semibold tracking-[0.2em] uppercase text-primary-fixed">
+          <span className="text-xs font-semibold tracking-[0.2em] uppercase text-[#9efbff]">
             Layer 3 Human Audit
           </span>
         </div>
 
-        <section className="bg-surface-container rounded-xl p-8 border border-outline-variant/15">
-          <h1 className="text-3xl font-headline font-extrabold mb-2">Expert Review Intake</h1>
-          <p className="text-sm text-on-surface-variant mb-6">Paper ID: {paperId}</p>
+        <section className="workflow-panel rounded-xl p-8">
+          <h1 className="text-3xl font-headline font-extrabold mb-2 text-white/90">Expert Review Intake</h1>
+          <p className="text-sm text-white/60 mb-6">Paper ID: {paperId}</p>
 
           {submitted ? (
             <div className="rounded-md border border-primary-fixed/30 bg-primary-fixed/10 px-4 py-3 text-primary-fixed">
@@ -82,7 +87,7 @@ export default function ExpertReviewPage({ params }: PageProps) {
             </div>
           ) : null}
 
-          <div className="[&_label]:text-on-surface [&_input]:bg-black/20 [&_input]:border [&_input]:border-outline-variant/40 [&_input]:rounded-md [&_textarea]:bg-black/20 [&_textarea]:border [&_textarea]:border-outline-variant/40 [&_textarea]:rounded-md [&_select]:bg-black/20 [&_select]:border [&_select]:border-outline-variant/40 [&_button[type='submit']]:bg-primary-fixed [&_button[type='submit']]:text-on-primary-fixed [&_button[type='submit']]:font-semibold [&_button[type='submit']]:rounded-sm [&_button[type='submit']]:px-4 [&_button[type='submit']]:py-2">
+          <div className="[&_label]:text-white/80 [&_label]:font-medium [&_input]:bg-black/[0.35] [&_input]:border [&_input]:border-white/[0.24] [&_input]:text-white/85 [&_input]:rounded-md [&_textarea]:bg-black/[0.35] [&_textarea]:border [&_textarea]:border-white/[0.24] [&_textarea]:text-white/85 [&_textarea]:rounded-md [&_select]:bg-black/[0.35] [&_select]:border [&_select]:border-white/[0.24] [&_select]:text-white/85 [&_button[type='submit']]:bg-[#63f7ff] [&_button[type='submit']]:text-[#03272b] [&_button[type='submit']]:font-semibold [&_button[type='submit']]:rounded-md [&_button[type='submit']]:px-4 [&_button[type='submit']]:py-2 [&_button[type='submit']]:hover:bg-[#8cfbff]">
             <ErrorBoundary fallback={
               <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-center">
                 <h3 className="text-xl text-red-400 font-bold mb-2">Form Rendering Failed</h3>

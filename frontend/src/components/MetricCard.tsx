@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -43,7 +43,7 @@ export function MetricCard({ id, name, percent, rationale, snippet }: MetricCard
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.99 }}
       transition={{ duration: 0.2 }}
-      className="interactive-lift border border-white/10 bg-black/40 backdrop-blur-md rounded-xl p-5 md:p-6 w-full flex flex-col justify-center cursor-pointer shadow-[0_4px_24px_rgba(0,0,0,0.2)] hover:border-white/20 hover:bg-black/50"
+      className="interactive-lift border border-white/[0.2] bg-[#0d1828]/[0.86] backdrop-blur-md rounded-xl p-5 md:p-6 w-full flex flex-col justify-center cursor-pointer shadow-[0_8px_28px_rgba(0,0,0,0.32)] hover:border-white/[0.28] hover:bg-[#122035]/[0.9]"
       onClick={() => setExpanded(!expanded)}
     >
       <motion.div layout className="flex items-center justify-between gap-4">

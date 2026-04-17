@@ -8,27 +8,27 @@ export default function AppHeader() {
   const showNav = pathname !== '/submit';
 
   return (
-    <header className="bg-black/30 docked full-width top-0 sticky z-50">
+    <header className="sticky top-0 z-50 border-b border-white/[0.1] bg-black/[0.48] backdrop-blur-md">
       <div className="flex justify-between items-center w-full max-w-6xl mx-auto px-6 md:px-10 h-20">
         <AnimatedRouteLink
           href="/"
-          className="text-lg font-semibold tracking-tight text-on-surface/60 font-headline"
+          className="text-lg font-semibold tracking-tight text-white/78 font-headline hover:text-[#bdfdff] transition-colors"
         >
           MatDAO
         </AnimatedRouteLink>
 
         {showNav ? (
-          <nav className="hidden md:flex items-center gap-8 text-sm text-on-surface/40">
-            <AnimatedRouteLink className="hover:text-on-surface/70 transition-colors" href="/submit">
+          <nav className="hidden md:flex items-center gap-8 text-sm text-white/45">
+            <AnimatedRouteLink className="hover:text-white/80 transition-colors" href="/submit">
               Evaluation
             </AnimatedRouteLink>
-            <AnimatedRouteLink className="hover:text-on-surface/70 transition-colors" href="/upsell">
+            <AnimatedRouteLink className="hover:text-white/80 transition-colors" href="/upsell">
               Accuracy
             </AnimatedRouteLink>
           </nav>
         ) : null}
 
-        <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-on-surface/70">
+        <div className="rounded-full border border-white/[0.18] bg-white/[0.08] px-4 py-2 text-xs font-medium text-white/70">
           Prototype
         </div>
       </div>

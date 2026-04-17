@@ -121,9 +121,9 @@ export default function Home() {
       <main className="flex-grow z-10 relative px-5 sm:px-6 py-12 md:py-16">
         <div className="absolute inset-0 pointer-events-none z-0">
           {/* Subtle vignette/gradient over the shader but behind content */}
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/40" />
-          <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[900px] bg-cyan-300/5 rounded-full blur-[150px]" />
-          <div className="absolute bottom-[-18%] right-[4%] w-[560px] h-[560px] bg-indigo-500/5 rounded-full blur-[160px]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/[0.16] via-black/[0.26] to-black/[0.56]" />
+          <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[900px] bg-cyan-300/[0.03] rounded-full blur-[160px]" />
+          <div className="absolute bottom-[-18%] right-[4%] w-[560px] h-[560px] bg-indigo-500/[0.03] rounded-full blur-[170px]" />
         </div>
 
         <div ref={heroRef} className="relative z-10 w-full max-w-6xl mx-auto">
@@ -178,8 +178,8 @@ export default function Home() {
                   imageUrl={card.imageUrl}
                   className={`h-[260px] md:h-[280px] transition-all duration-500 ease-out delay-75 ${
                     activeIntent === card.intent
-                      ? 'ring-1 ring-[#89fdff]/30 shadow-[0_8px_32px_rgba(110,252,255,0.08)]'
-                      : 'ring-1 ring-white/5'
+                      ? 'ring-1 ring-[#89fdff]/[0.36] shadow-[0_10px_34px_rgba(110,252,255,0.12)]'
+                      : 'ring-1 ring-white/[0.14]'
                   }`}
                 />
               </button>
