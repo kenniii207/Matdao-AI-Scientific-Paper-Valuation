@@ -1,5 +1,3 @@
-const DEFAULT_PROD_API_URL = 'https://matdao-backend.onrender.com';
-
 function normalizeBaseUrl(input: string): string {
   return input.trim().replace(/\/+$/, '');
 }
@@ -7,18 +5,7 @@ function normalizeBaseUrl(input: string): string {
 function getApiBaseUrl(): string {
   const configured = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL || '');
   if (configured) return configured;
-
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname.toLowerCase();
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://localhost:8000';
-    }
-    if (host.includes('matdao-backend.onrender.com')) {
-      return '';
-    }
-  }
-
-  return DEFAULT_PROD_API_URL;
+  return '';
 }
 
 export function apiUrl(path: string): string {

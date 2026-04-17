@@ -18,6 +18,9 @@ type UploadApiResponse = {
   error?: string;
 };
 
+const UPLOAD_TIMEOUT_MS = 90_000;
+const MAX_UPLOAD_ATTEMPTS = 3;
+
 const isUploadApiResponse = (value: unknown): value is UploadApiResponse => {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
@@ -122,17 +125,17 @@ export default function SubmitClient() {
       let res: Response | null = null;
       let data: UploadApiResponse = {};
       let lastError: Error | null = null;
-      for (let attempt = 1; attempt <= 2; attempt += 1) {
+      for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt += 1) {
         try {
-          res = await fetchWithTimeout(apiUrl('/api/upload'), { method: 'POST', body: formData }, 35000);
+          res = await fetchWithTimeout(apiUrl('/api/upload'), { method: 'POST', body: formData }, UPLOAD_TIMEOUT_MS);
           const parsed: unknown = await res.json().catch(() => ({}));
           data = isUploadApiResponse(parsed) ? parsed : {};
           break;
         } catch (err) {
           lastError = err instanceof Error ? err : new Error(String(err));
-          if (attempt < 2) {
-            setMessage('Connecting to backend... retrying upload once.');
-            await new Promise((resolve) => setTimeout(resolve, 900));
+          if (attempt < MAX_UPLOAD_ATTEMPTS) {
+            setMessage(`Connecting to backend... retrying upload (${attempt + 1}/${MAX_UPLOAD_ATTEMPTS}).`);
+            await new Promise((resolve) => setTimeout(resolve, attempt * 1200));
           }
         }
       }

@@ -206,7 +206,7 @@ export function WebGLShader({ disableShader = false }: { disableShader?: boolean
         className={fallbackMode ? "hidden" : "h-full w-full block"}
         style={{ background: "transparent", opacity: fallbackMode ? 0 : 0.99 }}
       />
-      <div className={`light-string-fallback ${fallbackMode ? "opacity-100" : "opacity-35"}`}>
+      <div className={`light-string-fallback ${fallbackMode ? "opacity-100" : "opacity-80"}`}>
         <div className="light-string-fallback__rainbow" />
         <div className="light-string-fallback__core" />
       </div>

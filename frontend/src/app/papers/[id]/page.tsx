@@ -13,6 +13,10 @@ import type { ScoringPendingResponse, ScoringResponse } from '@/lib/types/scorin
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { AnimatedRouteLink } from '@/components/AnimatedRouteLink';
 
+const RESULTS_TIMEOUT_MS = 30_000;
+const MAX_TOTAL_POLL_MS = 8 * 60 * 1000;
+const MAX_CONSECUTIVE_FAILURES = 14;
+
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
@@ -46,7 +50,7 @@ export default function PaperResultsPage() {
       const res = await fetchWithTimeout(
         apiUrl(`/api/scoring/results/${encodeURIComponent(paperId)}`),
         {},
-        15000,
+        RESULTS_TIMEOUT_MS,
       );
       if (res.status === 404 || res.status === 202) return null;
       if (!res.ok) throw new Error('Backend error while retrieving result.');
@@ -82,19 +86,19 @@ export default function PaperResultsPage() {
         );
       }
 
-      if (Date.now() - start > 180_000) {
-        setError('Still processing after 3 minutes. Please refresh in a minute.');
+      if (Date.now() - start > MAX_TOTAL_POLL_MS) {
+        setError('Still processing after 8 minutes. Please refresh in a minute.');
         setLoading(false);
         return;
       }
-      if (consecutiveFailures >= 8) {
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         setError('Temporary network issue while fetching results. Please retry.');
         setLoading(false);
         return;
       }
 
       setLoading(true);
-      setTimeout(poll, Math.min(3500, 1400 + consecutiveFailures * 350));
+      setTimeout(poll, Math.min(6000, 1600 + consecutiveFailures * 420));
     };
 
     poll();
