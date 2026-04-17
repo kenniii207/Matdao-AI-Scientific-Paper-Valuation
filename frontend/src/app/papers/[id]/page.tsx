@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { motion } from 'framer-motion';
 import AppHeader from '@/components/AppHeader';
+import { MetricCard } from '@/components/MetricCard';
 import AppFooter from '@/components/AppFooter';
 import { apiUrl, fetchWithTimeout } from '@/lib/api';
 import type { ScoringPendingResponse, ScoringResponse } from '@/lib/types/scoring';
@@ -291,24 +293,37 @@ export default function PaperResultsPage() {
 
                 <div className="lg:col-span-7">
                   <div className="interactive-lift border border-white/10 bg-black/25 rounded-xl p-5 md:p-6">
-                    <div className="space-y-5">
+                    <motion.div 
+                      className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+                      initial="hidden"
+                      animate="show"
+                      variants={{
+                        hidden: { opacity: 0 },
+                        show: {
+                          opacity: 1,
+                          transition: { staggerChildren: 0.1 }
+                        }
+                      }}
+                    >
                       {dims.map((d) => (
-                        <div key={d.dimension_id} className="grid grid-cols-12 gap-3 items-center">
-                          <div className="col-span-6 sm:col-span-5 text-white/55 text-sm">
-                            {d.dimension_name}
-                          </div>
-                          <div className="col-span-5 sm:col-span-6 h-2 rounded-full bg-white/10 overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-[#6efcff] to-[#00dce5] shadow-[0_0_10px_rgba(110,252,255,0.35)]"
-                              style={{ width: `${d.percent}%` }}
-                            />
-                          </div>
-                          <div className="col-span-1 text-right text-white/55 text-sm tabular-nums">
-                            {d.percent}
-                          </div>
-                        </div>
+                        <motion.div
+                          key={d.dimension_id}
+                          variants={{
+                            hidden: { opacity: 0, y: 30, scale: 0.95 },
+                            show: { opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 200, damping: 20 } }
+                          }}
+                        >
+                          <MetricCard 
+                            id={d.dimension_id}
+                            name={d.dimension_name}
+                            percent={d.percent}
+                            rawScore={d.raw_score}
+                            rationale={d.rationale}
+                            snippet={d.origin_snippet}
+                          />
+                        </motion.div>
                       ))}
-                    </div>
+                    </motion.div>
 
                     <div className="mt-8 md:mt-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 sm:gap-6">
                       <div className="text-white/35 text-sm">
