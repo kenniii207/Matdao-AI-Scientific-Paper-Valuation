@@ -122,9 +122,9 @@ export function WebGLShader({ disableShader = false }: { disableShader?: boolean
       refs.uniforms = {
         resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
         time: { value: 0.0 },
-        xScale: { value: 1.0 },
-        yScale: { value: 0.5 },
-        distortion: { value: 0.05 },
+        xScale: { value: 1.15 },
+        yScale: { value: 0.52 },
+        distortion: { value: 0.065 },
       }
 
       const positions = new THREE.BufferAttribute(
@@ -157,7 +157,7 @@ export function WebGLShader({ disableShader = false }: { disableShader?: boolean
 
     const animate = (time: number) => {
       if (!refs.renderer || !refs.scene || !refs.camera || !refs.mesh || !refs.uniforms) return
-      refs.uniforms.time.value = time * 0.001
+      refs.uniforms.time.value = time * 0.00145
       refs.renderer.render(refs.scene, refs.camera)
       refs.animationId = requestAnimationFrame(animate)
     }
@@ -206,9 +206,9 @@ export function WebGLShader({ disableShader = false }: { disableShader?: boolean
         className={fallbackMode ? "hidden" : "h-full w-full block"}
         style={{ background: "transparent", opacity: fallbackMode ? 0 : 0.99 }}
       />
-      <div className={`light-string-fallback ${fallbackMode ? "opacity-100" : "opacity-65"}`}>
-        <div className="light-string-fallback__rainbow" />
-        <div className="light-string-fallback__core" />
+      <div className={`light-string-fallback motion-essential ${fallbackMode ? "opacity-100" : "opacity-55"}`}>
+        <div className="light-string-fallback__rainbow motion-essential" />
+        <div className="light-string-fallback__core motion-essential" />
       </div>
     </div>
   )

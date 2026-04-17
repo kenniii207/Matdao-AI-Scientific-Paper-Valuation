@@ -197,6 +197,16 @@ h1, h2, h3, .tech-display, .headline-font {
   50% { transform: translate3d(-50%, -8px, 0) rotate(-7deg) scale(1.015); }
 }
 
+@keyframes light-string-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 220% 50%; }
+}
+
+@keyframes light-string-breath {
+  0%, 100% { opacity: 0.62; filter: blur(10px) saturate(1.05); }
+  50% { opacity: 0.88; filter: blur(14px) saturate(1.22); }
+}
+
 .light-string-fallback {
   position: absolute;
   inset: 0;
@@ -224,9 +234,14 @@ h1, h2, h3, .tech-display, .headline-font {
     rgba(255, 191, 140, 0.58) 77%,
     rgba(110, 252, 255, 0.55) 100%
   );
-  filter: blur(18px);
+  background-size: 220% 100%;
+  will-change: transform, background-position, opacity, filter;
+  filter: blur(18px) saturate(1.12);
   opacity: 0.74;
-  animation: light-string-drift 9s ease-in-out infinite;
+  animation:
+    light-string-flow 6.2s linear infinite,
+    light-string-drift 7.8s ease-in-out infinite,
+    light-string-breath 4.6s ease-in-out infinite;
 }
 
 .light-string-fallback__core {
@@ -237,9 +252,14 @@ h1, h2, h3, .tech-display, .headline-font {
     rgba(255, 226, 198, 0.36) 79%,
     rgba(182, 248, 255, 0.26) 100%
   );
-  filter: blur(11px);
+  background-size: 200% 100%;
+  will-change: transform, background-position, opacity, filter;
+  filter: blur(11px) saturate(1.05);
   opacity: 0.62;
-  animation: light-string-drift 8s ease-in-out infinite reverse;
+  animation:
+    light-string-flow 7.3s linear infinite reverse,
+    light-string-drift 6.6s ease-in-out infinite reverse,
+    light-string-breath 5.1s ease-in-out infinite reverse;
 }
 
 @keyframes card-shine {
@@ -352,5 +372,16 @@ h1, h2, h3, .tech-display, .headline-font {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .motion-essential.light-string-fallback__rainbow,
+  .motion-essential.light-string-fallback__core {
+    animation-duration: 6.2s, 7.8s, 4.6s !important;
+    animation-iteration-count: infinite !important;
+    transition-duration: initial !important;
+  }
+
+  .motion-essential.light-string-fallback__core {
+    animation-duration: 7.3s, 6.6s, 5.1s !important;
   }
 }
