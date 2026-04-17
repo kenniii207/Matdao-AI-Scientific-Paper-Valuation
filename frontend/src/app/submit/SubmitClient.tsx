@@ -3,6 +3,7 @@
 import anime from 'animejs';
 import gsap from 'gsap';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import AppFooter from '@/components/AppFooter';
@@ -35,6 +36,63 @@ const isUploadApiResponse = (value: unknown): value is UploadApiResponse => {
   }
   return true;
 };
+
+function UploadVector({
+  phase,
+  intent,
+}: {
+  phase: UploadPhase;
+  intent: string | null;
+}) {
+  const accent = intent === 'industry' ? '#b594ff' : intent === 'strength' ? '#95f1ff' : '#78fbff';
+  const isBusy = phase === 'uploading' || phase === 'processing' || phase === 'finalizing';
+
+  return (
+    <div className="relative h-24 w-24">
+      <motion.div
+        className="absolute inset-0 rounded-full blur-xl"
+        style={{ backgroundColor: `${accent}33` }}
+        animate={isBusy ? { scale: [0.9, 1.08, 0.9], opacity: [0.35, 0.75, 0.35] } : { scale: 1, opacity: 0.45 }}
+        transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+      />
+      <motion.svg
+        viewBox="0 0 120 120"
+        className="relative h-full w-full"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <motion.circle
+          cx="60"
+          cy="60"
+          r="35"
+          stroke={accent}
+          strokeWidth="3"
+          strokeOpacity="0.85"
+          strokeDasharray="10 8"
+          animate={isBusy ? { rotate: 360 } : { rotate: 0 }}
+          transition={{ duration: 9, repeat: Infinity, ease: 'linear' }}
+          style={{ transformOrigin: '50% 50%' }}
+        />
+        <motion.path
+          d={intent === 'industry' ? 'M30 72L50 48L66 61L91 40' : intent === 'strength' ? 'M28 78L45 78L45 60L58 60L58 49L72 49L72 40L90 40' : 'M30 66C40 52 50 45 62 45C74 45 84 53 90 66'}
+          stroke={accent}
+          strokeWidth="4"
+          strokeLinecap="round"
+          animate={isBusy ? { pathLength: [0.45, 1, 0.45], opacity: [0.55, 1, 0.55] } : { pathLength: 0.78, opacity: 0.8 }}
+          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.circle
+          cx="60"
+          cy="60"
+          r="6"
+          fill={accent}
+          animate={isBusy ? { scale: [0.85, 1.15, 0.85] } : { scale: 1 }}
+          transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </motion.svg>
+    </div>
+  );
+}
 
 export default function SubmitClient() {
   const router = useRouter();
@@ -202,8 +260,11 @@ export default function SubmitClient() {
             }}
           >
             <div className="flex flex-col items-center">
-              <div className="material-symbols-outlined text-[56px] text-white/50 mb-4">
-                description
+              <div className="relative mb-4">
+                <UploadVector phase={uploadPhase} intent={intent} />
+                <div className="material-symbols-outlined absolute inset-0 flex items-center justify-center text-[34px] text-white/72">
+                  description
+                </div>
               </div>
 
               {uploadState === 'uploading' ? (
@@ -234,6 +295,22 @@ export default function SubmitClient() {
                         {phase}
                       </div>
                     ))}
+                  </div>
+                  <div className="mt-4 rounded-md border border-white/10 bg-black/35 px-3 py-2">
+                    <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.15em] text-white/45 mb-2">
+                      <span>Vector pipeline</span>
+                      <span>{uploadPhase.toUpperCase()}</span>
+                    </div>
+                    <div className="relative h-8 overflow-hidden">
+                      <motion.div
+                        className="absolute inset-y-0 left-0 w-10 rounded-full bg-[#8efcff]/35 blur-md"
+                        animate={{ x: ['-20%', '260%'] }}
+                        transition={{ duration: 1.25, ease: 'easeInOut', repeat: Infinity }}
+                      />
+                      <svg viewBox="0 0 320 28" className="relative h-full w-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 20L60 20L93 8L143 8L182 20L220 20L258 11L314 11" stroke="#8efcff" strokeOpacity="0.75" strokeWidth="2.2" strokeLinecap="round" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
               ) : (

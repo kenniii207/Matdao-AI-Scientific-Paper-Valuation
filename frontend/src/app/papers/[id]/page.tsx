@@ -196,6 +196,48 @@ export default function PaperResultsPage() {
             data-route-item
           >
             <div className="workflow-panel w-full max-w-3xl text-center rounded-2xl px-6 sm:px-8 py-9" data-route-item>
+              <div className="mx-auto mb-5 relative h-20 w-20">
+                <motion.div
+                  className="absolute inset-0 rounded-full bg-[#7ef9ff]/20 blur-xl"
+                  animate={{ scale: [0.88, 1.08, 0.88], opacity: [0.35, 0.75, 0.35] }}
+                  transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                />
+                <motion.svg
+                  viewBox="0 0 96 96"
+                  className="relative h-full w-full"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <motion.circle
+                    cx="48"
+                    cy="48"
+                    r="28"
+                    stroke="#8efcff"
+                    strokeWidth="3"
+                    strokeOpacity="0.86"
+                    strokeDasharray="8 8"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 9, repeat: Infinity, ease: 'linear' }}
+                    style={{ transformOrigin: '50% 50%' }}
+                  />
+                  <motion.path
+                    d="M22 54L38 40L49 48L63 34L75 40"
+                    stroke="#c9fdff"
+                    strokeWidth="3.4"
+                    strokeLinecap="round"
+                    animate={{ pathLength: [0.4, 1, 0.4], opacity: [0.5, 1, 0.5] }}
+                    transition={{ duration: 1.7, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                  <motion.circle
+                    cx="49"
+                    cy="48"
+                    r="4.8"
+                    fill="#8efcff"
+                    animate={{ scale: [0.85, 1.18, 0.85] }}
+                    transition={{ duration: 1.15, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                </motion.svg>
+              </div>
               <h1 className="font-headline text-4xl md:text-5xl font-extrabold text-white/80 tracking-tight mb-3">
                 Analyzing your research
               </h1>

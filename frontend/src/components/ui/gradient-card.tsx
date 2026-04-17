@@ -24,6 +24,7 @@ const cardVariants = cva(
 );
 
 export interface GradientCardProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof cardVariants> {
+  intent?: 'evaluate' | 'strength' | 'industry';
   badgeText: string;
   badgeColor: string;
   title: string;
@@ -34,6 +35,7 @@ export interface GradientCardProps extends React.HTMLAttributes<HTMLDivElement>,
 }
 
 type CardGradient = NonNullable<GradientCardProps['gradient']>;
+type CardIntent = NonNullable<GradientCardProps['intent']>;
 
 const vectorPalette: Record<CardGradient, { stroke: string; fill: string; glow: string }> = {
   orange: {
@@ -58,9 +60,17 @@ const vectorPalette: Record<CardGradient, { stroke: string; fill: string; glow: 
   },
 };
 
+const gradientToIntent: Record<CardGradient, CardIntent> = {
+  orange: 'evaluate',
+  gray: 'strength',
+  purple: 'industry',
+  green: 'evaluate',
+};
+
 const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
-  ({ className, gradient, badgeText, badgeColor, title, description, ctaText, ctaHref, imageUrl, ...props }, ref) => {
+  ({ className, gradient, intent, badgeText, badgeColor, title, description, ctaText, ctaHref, imageUrl, ...props }, ref) => {
     const resolvedGradient = (gradient ?? 'gray') as CardGradient;
+    const resolvedIntent = intent ?? gradientToIntent[resolvedGradient];
     const vector = vectorPalette[resolvedGradient];
 
     const cardAnimation = {
@@ -81,6 +91,117 @@ const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
     const vectorPathAnimation = {
       rest: { pathLength: 0.62, opacity: 0.74 },
       hover: { pathLength: 1, opacity: 1 },
+    };
+
+    const renderIntentVector = () => {
+      if (resolvedIntent === 'strength') {
+        return (
+          <motion.svg
+            viewBox="0 0 220 220"
+            className="relative h-full w-full drop-shadow-[0_0_14px_rgba(0,0,0,0.35)]"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            {[0, 1, 2, 3].map((idx) => (
+              <motion.rect
+                key={idx}
+                x={46 + idx * 34}
+                y={122 - idx * 20}
+                width="20"
+                height={28 + idx * 20}
+                rx="6"
+                fill={vector.fill}
+                stroke={vector.stroke}
+                strokeWidth="2.6"
+                variants={{ rest: { scaleY: 0.86 }, hover: { scaleY: 1.08 } }}
+                transition={{ type: 'spring', stiffness: 220, damping: 16, delay: idx * 0.04 }}
+                style={{ transformOrigin: '50% 100%' }}
+              />
+            ))}
+            <motion.path
+              d="M36 166C72 148 110 130 182 92"
+              stroke={vector.stroke}
+              strokeWidth="4.2"
+              strokeLinecap="round"
+              variants={vectorPathAnimation}
+              transition={{ duration: 0.46, ease: 'easeOut' }}
+            />
+          </motion.svg>
+        );
+      }
+
+      if (resolvedIntent === 'industry') {
+        return (
+          <motion.svg
+            viewBox="0 0 220 220"
+            className="relative h-full w-full drop-shadow-[0_0_14px_rgba(0,0,0,0.35)]"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <motion.path
+              d="M42 162L90 122L130 142L178 94"
+              stroke={vector.stroke}
+              strokeWidth="4.6"
+              strokeLinecap="round"
+              variants={vectorPathAnimation}
+              transition={{ duration: 0.45, ease: 'easeOut' }}
+            />
+            {[{ x: 42, y: 162, r: 10 }, { x: 90, y: 122, r: 13 }, { x: 130, y: 142, r: 9 }, { x: 178, y: 94, r: 16 }].map((node, idx) => (
+              <motion.circle
+                key={`${node.x}-${node.y}`}
+                cx={node.x}
+                cy={node.y}
+                r={node.r}
+                fill={vector.fill}
+                stroke={vector.stroke}
+                strokeWidth="2.8"
+                variants={{ rest: { scale: 0.9 }, hover: { scale: 1.12 } }}
+                transition={{ type: 'spring', stiffness: 220, damping: 16, delay: idx * 0.05 }}
+              />
+            ))}
+          </motion.svg>
+        );
+      }
+
+      return (
+        <motion.svg
+          viewBox="0 0 220 220"
+          className="relative h-full w-full drop-shadow-[0_0_14px_rgba(0,0,0,0.35)]"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <motion.circle
+            cx="124"
+            cy="104"
+            r="34"
+            stroke={vector.stroke}
+            strokeWidth="4.6"
+            variants={vectorPathAnimation}
+            transition={{ duration: 0.45, ease: 'easeOut' }}
+          />
+          {[0, 1, 2].map((idx) => (
+            <motion.circle
+              key={idx}
+              cx={72 + idx * 40}
+              cy={154 - (idx % 2) * 28}
+              r={idx === 1 ? 11 : 8}
+              fill={vector.fill}
+              stroke={vector.stroke}
+              strokeWidth="2.6"
+              variants={{ rest: { scale: 0.88 }, hover: { scale: 1.1 } }}
+              transition={{ type: 'spring', stiffness: 220, damping: 16, delay: idx * 0.05 }}
+            />
+          ))}
+          <motion.path
+            d="M78 150L102 126L126 150L148 122"
+            stroke={vector.stroke}
+            strokeWidth="3.6"
+            strokeLinecap="round"
+            variants={vectorPathAnimation}
+            transition={{ duration: 0.52, ease: 'easeOut' }}
+          />
+        </motion.svg>
+      );
     };
 
     return (
@@ -112,50 +233,7 @@ const GradientCard = React.forwardRef<HTMLDivElement, GradientCardProps>(
               className="absolute inset-0 rounded-full blur-2xl"
               style={{ backgroundColor: vector.glow }}
             />
-            <motion.svg
-              viewBox="0 0 220 220"
-              className="relative h-full w-full drop-shadow-[0_0_14px_rgba(0,0,0,0.35)]"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <motion.path
-                d="M28 160C54 118 88 94 125 94C162 94 185 120 192 154"
-                stroke={vector.stroke}
-                strokeWidth="5.5"
-                strokeLinecap="round"
-                variants={vectorPathAnimation}
-                transition={{ duration: 0.42, ease: 'easeOut' }}
-              />
-              <motion.path
-                d="M48 182C86 136 128 118 172 124"
-                stroke={vector.stroke}
-                strokeWidth="3.8"
-                strokeLinecap="round"
-                strokeOpacity="0.84"
-                variants={vectorPathAnimation}
-                transition={{ duration: 0.52, ease: 'easeOut' }}
-              />
-              <motion.circle
-                cx="152"
-                cy="82"
-                r="20"
-                fill={vector.fill}
-                stroke={vector.stroke}
-                strokeWidth="3.2"
-                variants={{ rest: { scale: 0.86 }, hover: { scale: 1.05 } }}
-                transition={{ type: 'spring', stiffness: 220, damping: 16 }}
-              />
-              <motion.circle
-                cx="82"
-                cy="122"
-                r="9"
-                fill={vector.fill}
-                stroke={vector.stroke}
-                strokeWidth="2.6"
-                variants={{ rest: { scale: 0.9 }, hover: { scale: 1.12 } }}
-                transition={{ type: 'spring', stiffness: 220, damping: 16, delay: 0.03 }}
-              />
-            </motion.svg>
+            {renderIntentVector()}
           </motion.div>
 
           <div className="z-10 flex flex-col h-full">

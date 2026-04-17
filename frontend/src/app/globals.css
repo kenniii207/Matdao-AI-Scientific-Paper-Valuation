@@ -208,6 +208,10 @@ h1, h2, h3, .tech-display, .headline-font {
   box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
 }
 
+.safe-bottom-inset {
+  padding-bottom: max(7rem, env(safe-area-inset-bottom));
+}
+
 @keyframes light-string-drift {
   0%, 100% { transform: translate3d(-50%, 0, 0) rotate(-8deg) scale(1); }
   50% { transform: translate3d(-50%, -8px, 0) rotate(-7deg) scale(1.015); }

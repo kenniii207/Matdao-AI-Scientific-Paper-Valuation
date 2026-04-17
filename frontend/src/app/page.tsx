@@ -109,7 +109,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col overflow-x-hidden bg-transparent relative">
+    <div className="min-h-[100dvh] flex flex-col overflow-x-hidden bg-transparent relative">
       {/* Layer 2: Shader (Fixed behind everything) */}
       {isMounted ? <WebGLShader /> : null}
 
@@ -118,7 +118,7 @@ export default function Home() {
         <AppHeader />
       </div>
 
-      <main className="flex-grow z-10 relative px-5 sm:px-6 py-12 md:py-16">
+      <main className="safe-bottom-inset flex-grow z-10 relative px-5 sm:px-6 py-12 md:py-16 pb-28 md:pb-20">
         <div className="absolute inset-0 pointer-events-none z-0">
           {/* Subtle vignette/gradient over the shader but behind content */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/[0.16] via-black/[0.26] to-black/[0.56]" />
@@ -169,6 +169,7 @@ export default function Home() {
                 onClick={(e) => navigateWithPulse(card.href, e.currentTarget)}
               >
                 <GradientCard
+                  intent={card.intent}
                   badgeText={card.badgeText}
                   badgeColor={card.badgeColor}
                   title={card.title}
