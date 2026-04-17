@@ -74,9 +74,21 @@ def compute_score(
             )
         )
 
-    return ScoringResult(
+    result = ScoringResult(
         doi=doi,
         dimensions=dimensions,
         integrity_gate_triggered=integrity_gate_triggered,
         confidence_tier=confidence_tier,
     )
+
+    # ── INTEGRITY GATE HARD ASSERTION ─────────────────────────────────────
+    # If Dimension 9 = 1 (Retracted/Governance failure), the total MUST be 0.
+    # This assert is the last line of defence — it will raise AssertionError
+    # if any future refactor inadvertently breaks the gate formula.
+    if integrity_gate_triggered:
+        assert result.total_score == 0.0, (
+            f"INTEGRITY GATE VIOLATION: Dim9={dim9_score!r} triggered gate but "
+            f"total_score={result.total_score!r} ≠ 0.0 for doi={doi!r}"
+        )
+
+    return result

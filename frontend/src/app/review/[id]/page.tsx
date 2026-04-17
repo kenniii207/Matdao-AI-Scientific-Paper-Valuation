@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import AppFooter from '@/components/AppFooter';
 import AppHeader from '@/components/AppHeader';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 interface PageProps {
   params: { id: string };
@@ -82,7 +83,15 @@ export default function ExpertReviewPage({ params }: PageProps) {
           ) : null}
 
           <div className="[&_label]:text-on-surface [&_input]:bg-black/20 [&_input]:border [&_input]:border-outline-variant/40 [&_input]:rounded-md [&_textarea]:bg-black/20 [&_textarea]:border [&_textarea]:border-outline-variant/40 [&_textarea]:rounded-md [&_select]:bg-black/20 [&_select]:border [&_select]:border-outline-variant/40 [&_button[type='submit']]:bg-primary-fixed [&_button[type='submit']]:text-on-primary-fixed [&_button[type='submit']]:font-semibold [&_button[type='submit']]:rounded-sm [&_button[type='submit']]:px-4 [&_button[type='submit']]:py-2">
-            <Form schema={schema} uiSchema={uiSchema} validator={validator} onSubmit={() => setSubmitted(true)} />
+            <ErrorBoundary fallback={
+              <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl text-center">
+                <h3 className="text-xl text-red-400 font-bold mb-2">Form Rendering Failed</h3>
+                <p className="text-red-200/80 text-sm mb-4">A critical error occurred while loading the expert review intake form. This usually happens if the schema structure failed to load correctly.</p>
+                <button type="button" onClick={() => window.location.reload()} className="px-4 py-2 bg-red-500/20 text-red-200 rounded-md border border-red-500/30 hover:bg-red-500/30 transition-colors">Reload Page</button>
+              </div>
+            }>
+              <Form schema={schema} uiSchema={uiSchema} validator={validator} onSubmit={() => setSubmitted(true)} />
+            </ErrorBoundary>
           </div>
         </section>
       </main>

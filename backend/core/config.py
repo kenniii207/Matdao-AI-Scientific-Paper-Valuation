@@ -107,7 +107,7 @@ class Settings(BaseSettings):
         alias="EVALUATION_JOB_LEASE_SECONDS",
     )
     evaluation_job_max_retries: int = Field(
-        default=4,
+        default=5,
         alias="EVALUATION_JOB_MAX_RETRIES",
     )
     evaluation_job_retry_base_seconds: int = Field(

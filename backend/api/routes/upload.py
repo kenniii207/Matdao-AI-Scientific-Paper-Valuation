@@ -704,6 +704,54 @@ async def stop_evaluation_workers() -> None:
     _WORKER_TASKS.clear()
 
 
+@router.get("/jobs/stats")
+async def get_job_stats() -> JsonDict:
+    """Return live counts of evaluation jobs per state, plus dead job error logs."""
+    async with async_session_factory() as session:
+        counts_rows = (
+            await session.execute(
+                select(EvaluationJob.status, func.count(EvaluationJob.id).label("cnt"))
+                .group_by(EvaluationJob.status)
+            )
+        ).all()
+        counts: dict[str, int] = {row[0]: row[1] for row in counts_rows}
+
+        dead_jobs_rows = (
+            await session.scalars(
+                select(EvaluationJob)
+                .where(EvaluationJob.status == "dead")
+                .order_by(EvaluationJob.updated_at.desc())
+                .limit(50)
+            )
+        ).all()
+        dead_log = [
+            {
+                "job_id": str(job.id),
+                "paper_id": str(job.paper_id),
+                "attempt_count": job.attempt_count,
+                "max_attempts": job.max_attempts,
+                "error_log": job.last_error or "no error recorded",
+                "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+            }
+            for job in dead_jobs_rows
+        ]
+
+    return {
+        "queued": counts.get("queued", 0),
+        "processing": counts.get("processing", 0),
+        "retry": counts.get("retry", 0),
+        "dead": counts.get("dead", 0),
+        "completed": counts.get("completed", 0),
+        "total_active": counts.get("queued", 0) + counts.get("processing", 0) + counts.get("retry", 0),
+        "dead_letter_queue": dead_log,
+        "config": {
+            "max_retries": int(settings.evaluation_job_max_retries),
+            "lease_seconds": int(settings.evaluation_job_lease_seconds),
+            "poll_interval_seconds": float(settings.evaluation_job_poll_interval_seconds),
+        },
+    }
+
+
 @router.post("/upload")
 async def upload_pdf(
     file: UploadFile = File(...),
@@ -725,8 +773,8 @@ async def upload_pdf(
     synthetic_doi = f"10.matdao/{file_hash}"
 
     save_path = UPLOAD_DIR / f"{file_hash}.pdf"
-    with save_path.open("wb") as f:
-        f.write(contents)
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, save_path.write_bytes, contents)
 
     existing_paper = await session.scalar(
         select(ResearchPaper).where(ResearchPaper.matdao_id == file_hash)
@@ -876,10 +924,16 @@ async def upload_pdf(
 
     detected_doi = _extract_doi(final_text) or synthetic_doi
     parsed_profile = build_document_profile(final_text, fallback_title=file.filename)
+
+    # ── Immediate DOI commit: persist identity NOW so worker restarts can
+    # ── re-locate the paper even if the process dies before the final commit.
     paper.doi = detected_doi
     paper.title = parsed_profile.get("title") or file.filename
     paper.abstract = parsed_profile.get("abstract")
     paper.raw_text = final_text
+    session.add(paper)
+    await session.commit()
+    await session.refresh(paper)
 
     layer.status = "queued"
     layer.source = extraction_source
@@ -890,7 +944,6 @@ async def upload_pdf(
             "extract_ms": round((time.perf_counter() - extraction_start) * 1000, 2),
         },
     }
-    session.add(paper)
     session.add(layer)
     await _enqueue_evaluation_job_db(session, paper.id)
     await session.commit()
