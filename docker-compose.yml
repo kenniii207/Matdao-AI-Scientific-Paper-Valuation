@@ -31,6 +31,9 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://matdao:matdao_password@postgres:5432/matdao
       - ZAI_API_KEY=${ZAI_API_KEY:-}
+      - MANUS_API_KEY=${MANUS_API_KEY:-}
+      - MANUS_BASE_URL=${MANUS_BASE_URL:-}
+      - MANUS_MODEL=${MANUS_MODEL:-}
     depends_on:
       postgres:
         condition: service_healthy

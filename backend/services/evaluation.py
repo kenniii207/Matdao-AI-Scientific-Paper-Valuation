@@ -173,6 +173,16 @@ def _has_structured_scores(payload: Dict[str, Any] | Any) -> bool:
             continue
     return valid_count >= 5
 
+
+def _normalize_chat_completions_url(base_url_or_endpoint: str) -> str:
+    clean = (base_url_or_endpoint or "").strip().rstrip("/")
+    if not clean:
+        return ""
+    if clean.endswith("/chat/completions"):
+        return clean
+    return f"{clean}/chat/completions"
+
+
 class ScientificEvaluator:
     """Orchestrates scientific due diligence using LLM synthesis."""
 
@@ -242,11 +252,11 @@ class ScientificEvaluator:
 
         band = self._infer_complexity_band(text_content, metadata)
         if band == "high":
-            preferred = ["gemini", "qwen", "glm", "openrouter", "kimi", "minimax", "liquid"]
+            preferred = ["gemini", "qwen", "manus", "glm", "openrouter", "kimi", "minimax", "liquid"]
         elif band == "low":
-            preferred = ["qwen", "openrouter", "gemini", "glm", "kimi", "minimax", "liquid"]
+            preferred = ["qwen", "openrouter", "manus", "gemini", "glm", "kimi", "minimax", "liquid"]
         else:
-            preferred = ["gemini", "qwen", "openrouter", "glm", "kimi", "minimax", "liquid"]
+            preferred = ["gemini", "qwen", "manus", "openrouter", "glm", "kimi", "minimax", "liquid"]
 
         rank = {provider: index for index, provider in enumerate(preferred)}
         ordered = sorted(
@@ -265,12 +275,10 @@ class ScientificEvaluator:
         prompt: str,
     ) -> Dict[str, Any]:
         clean_key = (api_key or "").strip()
-        clean_base = (base_url or "").strip().rstrip("/")
+        clean_base = _normalize_chat_completions_url(base_url)
         clean_model = (model or "").strip()
         if not clean_key or not clean_base or not clean_model:
             return {"error": f"{provider_name}_not_configured", "provider": provider_name}
-
-        url = clean_base if clean_base.endswith("/chat/completions") else f"{clean_base}/chat/completions"
         headers = {
             "Authorization": f"Bearer {clean_key}",
             "Content-Type": "application/json",
@@ -288,7 +296,7 @@ class ScientificEvaluator:
         async with httpx.AsyncClient(timeout=float(self.provider_timeout)) as client:
             for attempt in range(1, 3):
                 try:
-                    resp = await client.post(url, headers=headers, json=payload)
+                    resp = await client.post(clean_base, headers=headers, json=payload)
                     resp.raise_for_status()
                     data = resp.json()
                     content = (
@@ -387,7 +395,9 @@ class ScientificEvaluator:
         if not api_key:
             return {"error": "openrouter_not_configured", "provider": "openrouter"}
 
-        url = (settings.openrouter_api_url or "https://openrouter.ai/api/v1/chat/completions").strip()
+        url = _normalize_chat_completions_url(
+            settings.openrouter_api_url or "https://openrouter.ai/api/v1/chat/completions"
+        )
         models = self._parse_csv(settings.openrouter_models)
         if not models:
             return {"error": "openrouter_models_missing", "provider": "openrouter"}
@@ -474,6 +484,15 @@ class ScientificEvaluator:
             api_key=settings.qwen_api_key,
             base_url=settings.qwen_base_url,
             model=settings.qwen_model,
+            prompt=prompt,
+        )
+
+    async def _evaluate_with_manus(self, prompt: str) -> Dict[str, Any]:
+        return await self._evaluate_with_openai_compatible(
+            provider_name="manus",
+            api_key=settings.manus_api_key,
+            base_url=settings.manus_base_url,
+            model=settings.manus_model,
             prompt=prompt,
         )
 
@@ -709,6 +728,7 @@ class ScientificEvaluator:
             "glm": self._evaluate_with_glm,
             "openrouter": self._evaluate_with_openrouter,
             "qwen": self._evaluate_with_qwen,
+            "manus": self._evaluate_with_manus,
             "kimi": self._evaluate_with_kimi,
             "minimax": self._evaluate_with_minimax,
             "liquid": self._evaluate_with_liquid,

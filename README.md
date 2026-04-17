@@ -63,7 +63,7 @@ PYTHONPATH=.. python -m pytest tests/ -v
 
 The evaluator supports a configurable provider chain to reduce 503 outages and avoid neutral-only outputs:
 
-- `LLM_FALLBACK_ORDER=gemini,glm,openrouter,qwen,kimi,minimax,liquid`
+- `LLM_FALLBACK_ORDER=gemini,glm,openrouter,qwen,manus,kimi,minimax,liquid`
 - `LLM_PROVIDER_TIMEOUT_SECONDS=120`
 - `LLM_ADAPTIVE_ROUTING_ENABLED=true` (auto-prioritizes provider order by paper complexity)
 - Provider keys/base URLs are optional; unconfigured providers are skipped.
@@ -80,7 +80,7 @@ Recommended minimum for staging:
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Zustand
 - **Database**: PostgreSQL 16 + pgvector
 - **OCR**: Falcon-OCR (300M local inference) + GLM-OCR (API fallback)
-- **Evaluation**: Multi-provider LLM fallback (Gemini, GLM, OpenRouter + optional Kimi/Minimax/Liquid)
+- **Evaluation**: Multi-provider LLM fallback (Gemini, GLM, OpenRouter + optional Qwen/Manus/Kimi/Minimax/Liquid)
 - **APIs**: OpenAlex, Semantic Scholar, NIH RePORTER, OSF, ClinicalTrials.gov, Falcon-OCR, GLM-OCR.
 
 ## License

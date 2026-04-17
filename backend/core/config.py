@@ -3,7 +3,7 @@
 import os
 
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, field_validator
 
 
 class Settings(BaseSettings):
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
     llm_fallback_order: str = Field(
-        default="gemini,glm,openrouter,qwen,kimi,minimax,liquid",
+        default="gemini,glm,openrouter,qwen,manus,kimi,minimax,liquid",
         alias="LLM_FALLBACK_ORDER",
     )
     llm_provider_timeout_seconds: int = Field(
@@ -68,6 +68,9 @@ class Settings(BaseSettings):
         alias="QWEN_BASE_URL",
     )
     qwen_model: str = Field(default="qwen-plus", alias="QWEN_MODEL")
+    manus_api_key: str = Field(default="", alias="MANUS_API_KEY")
+    manus_base_url: str = Field(default="", alias="MANUS_BASE_URL")
+    manus_model: str = Field(default="", alias="MANUS_MODEL")
     evaluation_text_max_chars: int = Field(default=12000, alias="EVALUATION_TEXT_MAX_CHARS")
     theme_search_results_per_source: int = Field(default=5, alias="THEME_SEARCH_RESULTS_PER_SOURCE")
     max_parallel_evaluations: int = Field(default=2, alias="MAX_PARALLEL_EVALUATIONS")
@@ -115,12 +118,18 @@ class Settings(BaseSettings):
     backend_port: int = Field(default=8000, alias="BACKEND_PORT")
     frontend_port: int = Field(default=3000, alias="FRONTEND_PORT")
 
-    # API Base URLs (not user-configured — hardcoded per spec)
-    openalex_base_url: str = "https://api.openalex.org"
-    semantic_scholar_base_url: str = "https://api.semanticscholar.org/graph/v1"
-    serpapi_base_url: str = "https://serpapi.com"
-    osf_base_url: str = "https://api.osf.io/v2"
-    clinical_trials_base_url: str = "https://clinicaltrials.gov/api/v2"
+    # API Base URLs (defaults per spec, override via env if needed)
+    openalex_base_url: str = Field(default="https://api.openalex.org", alias="OPENALEX_BASE_URL")
+    semantic_scholar_base_url: str = Field(
+        default="https://api.semanticscholar.org/graph/v1",
+        alias="SEMANTIC_SCHOLAR_BASE_URL",
+    )
+    serpapi_base_url: str = Field(default="https://serpapi.com", alias="SERPAPI_BASE_URL")
+    osf_base_url: str = Field(default="https://api.osf.io/v2", alias="OSF_BASE_URL")
+    clinical_trials_base_url: str = Field(
+        default="https://clinicaltrials.gov/api/v2",
+        alias="CLINICAL_TRIALS_BASE_URL",
+    )
 
     # Rate Limits (requests per second)
     openalex_rate_limit: float = 100.0
@@ -128,6 +137,29 @@ class Settings(BaseSettings):
     serpapi_rate_limit: float = 10.0
     osf_rate_limit: float = 10.0
     clinical_trials_rate_limit: float = 10.0
+
+    @field_validator(
+        "openalex_base_url",
+        "semantic_scholar_base_url",
+        "serpapi_base_url",
+        "osf_base_url",
+        "clinical_trials_base_url",
+        "kimi_base_url",
+        "minimax_base_url",
+        "liquid_ai_base_url",
+        "qwen_base_url",
+        "manus_base_url",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_base_url(cls, value: str) -> str:
+        text = str(value or "").strip()
+        return text.rstrip("/") if text else text
+
+    @field_validator("openrouter_api_url", mode="before")
+    @classmethod
+    def _normalize_openrouter_url(cls, value: str) -> str:
+        return str(value or "").strip()
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

@@ -21,7 +21,7 @@ services:
       - key: SERPAPI_API_KEY
         sync: false
       - key: LLM_FALLBACK_ORDER
-        value: "gemini,glm,openrouter,qwen,kimi,minimax,liquid"
+        value: "gemini,glm,openrouter,qwen,manus,kimi,minimax,liquid"
       - key: LLM_PROVIDER_TIMEOUT_SECONDS
         value: "120"
       - key: LLM_ADAPTIVE_ROUTING_ENABLED
@@ -62,6 +62,12 @@ services:
         value: "https://dashscope.aliyuncs.com/compatible-mode/v1"
       - key: QWEN_MODEL
         value: "qwen-plus"
+      - key: MANUS_API_KEY
+        sync: false
+      - key: MANUS_BASE_URL
+        sync: false
+      - key: MANUS_MODEL
+        sync: false
       - key: ENABLE_EXTERNAL_API_CACHE
         value: "true"
       - key: ENABLE_CURATED_CACHE

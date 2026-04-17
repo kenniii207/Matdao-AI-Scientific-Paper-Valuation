@@ -111,6 +111,18 @@ def test_has_structured_scores_requires_minimum_dimensions():
     )
 
 
+def test_normalize_chat_completions_url_accepts_base_or_endpoint():
+    assert (
+        evaluation_service._normalize_chat_completions_url("https://api.example.com/v1")
+        == "https://api.example.com/v1/chat/completions"
+    )
+    assert (
+        evaluation_service._normalize_chat_completions_url("https://api.example.com/v1/chat/completions")
+        == "https://api.example.com/v1/chat/completions"
+    )
+    assert evaluation_service._normalize_chat_completions_url("  ") == ""
+
+
 @pytest.mark.asyncio
 async def test_evaluate_content_falls_back_to_glm_when_gemini_fails(monkeypatch):
     monkeypatch.setattr(evaluation_service.settings, "gemini_api_key", "test-gemini")
@@ -222,6 +234,40 @@ async def test_evaluate_content_uses_qwen_fallback_from_order(monkeypatch):
     result = await evaluator.evaluate_content("paper text", {"document_profile": {"title": "T"}})
     assert result["_quality_signals"]["llm_provider"] == "qwen_fallback"
     assert result["scores"]["1"]["score"] == 4.0
+    assert result["_quality_signals"]["provider_errors"]["gemini"] == "gemini_503"
+
+
+@pytest.mark.asyncio
+async def test_evaluate_content_uses_manus_fallback_from_order(monkeypatch):
+    monkeypatch.setattr(
+        evaluation_service.settings,
+        "llm_fallback_order",
+        "gemini,manus,glm",
+    )
+    monkeypatch.setattr(evaluation_service.settings, "gemini_api_key", "test-gemini")
+    monkeypatch.setattr(evaluation_service.settings, "manus_api_key", "test-manus")
+    monkeypatch.setattr(evaluation_service.settings, "manus_base_url", "https://api.manus.ai/v1")
+    monkeypatch.setattr(evaluation_service.settings, "manus_model", "manus-analyst")
+    evaluator = evaluation_service.ScientificEvaluator()
+
+    async def fake_gemini(_prompt: str):
+        return {"error": "gemini_503"}
+
+    async def fake_manus(_prompt: str):
+        return {
+            "scores": {
+                str(idx): {"score": 4.2, "rationale": f"R{idx}", "origin_snippet": f"S{idx}"}
+                for idx in range(1, 10)
+            },
+            "insight": "Manus fallback produced structured evidence-linked output for this paper.",
+        }
+
+    monkeypatch.setattr(evaluator, "_evaluate_with_gemini", fake_gemini)
+    monkeypatch.setattr(evaluator, "_evaluate_with_manus", fake_manus)
+
+    result = await evaluator.evaluate_content("paper text", {"document_profile": {"title": "T"}})
+    assert result["_quality_signals"]["llm_provider"] == "manus_fallback"
+    assert result["scores"]["1"]["score"] == 4.2
     assert result["_quality_signals"]["provider_errors"]["gemini"] == "gemini_503"
 
 
