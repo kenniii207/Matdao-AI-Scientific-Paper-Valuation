@@ -7,14 +7,21 @@ Supports cloud MaaS API (Zhipu) or self-hosted vLLM/SGLang deployment.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Optional, TypedDict
 
 import httpx
 
+from backend.api.adapters.base_adapter import JSONObject
 from backend.core.config import settings
 from backend.core.exceptions import AdapterError
 
 logger = logging.getLogger(__name__)
+
+
+class GLMOCRParseResult(TypedDict):
+    text: str
+    status: str
+    raw_json: JSONObject
 
 
 class GLMOCRAdapter:
@@ -40,7 +47,7 @@ class GLMOCRAdapter:
             )
         return self._client
 
-    async def parse_image(self, image_base64: str, prompt: str = "OCR this document.") -> dict[str, Any]:
+    async def parse_image(self, image_base64: str, prompt: str = "OCR this document.") -> GLMOCRParseResult:
         """Send base64-encoded image to GLM-OCR for recognition."""
         if not self.api_key:
             raise AdapterError("GLM-OCR: missing ZAI_API_KEY")

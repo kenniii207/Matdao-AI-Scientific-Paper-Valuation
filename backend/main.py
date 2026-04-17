@@ -1,23 +1,33 @@
 """MatDAO Automation Framework — FastAPI application entry point."""
 
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from backend.core.config import settings
 from backend.core.exceptions import MatDAOBaseError
 from backend.api.routes import papers, scoring, upload
 from backend.db.session import engine
 from backend.db.models import Base
+
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup/shutdown lifecycle."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    yield
+    await upload.start_evaluation_workers()
+    recovered_jobs = await upload.recover_pending_evaluations()
+    if recovered_jobs:
+        logger.info("Recovered %d queued evaluation job(s) on startup", recovered_jobs)
+    try:
+        yield
+    finally:
+        await upload.stop_evaluation_workers()
 
 
 app = FastAPI(
@@ -37,7 +47,7 @@ app.add_middleware(
 
 
 @app.exception_handler(MatDAOBaseError)
-async def matdao_exception_handler(request: Request, exc: MatDAOBaseError):
+async def matdao_exception_handler(_request: Request, exc: MatDAOBaseError):
     """Centralized exception handler for all MatDAO domain errors."""
     return JSONResponse(
         status_code=exc.status_code,

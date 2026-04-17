@@ -7,6 +7,28 @@ import AppFooter from '@/components/AppFooter';
 import { apiUrl, fetchWithTimeout } from '@/lib/api';
 
 type UploadState = 'idle' | 'uploading' | 'error';
+type UploadPhase = 'idle' | 'uploading' | 'processing' | 'finalizing' | 'error';
+
+type UploadApiResponse = {
+  paper_id?: string | number;
+  detail?: string;
+  error?: string;
+};
+
+const isUploadApiResponse = (value: unknown): value is UploadApiResponse => {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Record<string, unknown>;
+  if ('paper_id' in candidate && typeof candidate.paper_id !== 'string' && typeof candidate.paper_id !== 'number') {
+    return false;
+  }
+  if ('detail' in candidate && typeof candidate.detail !== 'string') {
+    return false;
+  }
+  if ('error' in candidate && typeof candidate.error !== 'string') {
+    return false;
+  }
+  return true;
+};
 
 export default function SubmitClient() {
   const router = useRouter();
@@ -15,6 +37,7 @@ export default function SubmitClient() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
+  const [uploadPhase, setUploadPhase] = useState<UploadPhase>('idle');
   const [message, setMessage] = useState<string>('');
 
   const headline = useMemo(() => {
@@ -33,9 +56,13 @@ export default function SubmitClient() {
 
   const primaryIntent = intent === 'evaluate' || !intent;
   const primaryCtaLabel = primaryIntent ? 'Start Prototype Evaluation' : 'Start Analysis';
+  const uploadPhaseIndex =
+    uploadPhase === 'uploading' ? 1 : uploadPhase === 'processing' ? 2 : uploadPhase === 'finalizing' ? 3 : 0;
+  const uploadProgress = uploadPhase === 'uploading' ? 34 : uploadPhase === 'processing' ? 73 : uploadPhase === 'finalizing' ? 100 : 0;
 
   const uploadFile = async (file: File) => {
     setUploadState('uploading');
+    setUploadPhase('uploading');
     setMessage('Uploading PDF and extracting text...');
 
     try {
@@ -43,12 +70,13 @@ export default function SubmitClient() {
       formData.append('file', file);
 
       let res: Response | null = null;
-      let data: any = {};
+      let data: UploadApiResponse = {};
       let lastError: Error | null = null;
       for (let attempt = 1; attempt <= 2; attempt += 1) {
         try {
           res = await fetchWithTimeout(apiUrl('/api/upload'), { method: 'POST', body: formData }, 35000);
-          data = await res.json().catch(() => ({}));
+          const parsed: unknown = await res.json().catch(() => ({}));
+          data = isUploadApiResponse(parsed) ? parsed : {};
           break;
         } catch (err) {
           lastError = err instanceof Error ? err : new Error(String(err));
@@ -68,10 +96,16 @@ export default function SubmitClient() {
       const paperId = data?.paper_id;
       if (!paperId) throw new Error('Server response missing paper_id');
 
-      setMessage('Upload accepted. Evaluation running...');
+      setUploadPhase('processing');
+      setMessage('Upload accepted. Running extraction and scoring checks...');
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setUploadPhase('finalizing');
+      setMessage('Packaging result view...');
+      await new Promise((resolve) => setTimeout(resolve, 320));
       router.push(`/papers/${encodeURIComponent(String(paperId))}`);
     } catch (err) {
       setUploadState('error');
+      setUploadPhase('error');
       setMessage(err instanceof Error ? err.message : String(err));
     }
   };
@@ -105,10 +139,36 @@ export default function SubmitClient() {
                 description
               </div>
 
-              <div className="text-sm text-white/45 mb-6">Drag &amp; Drop your paper here</div>
-              <div className="text-xs text-white/30 mb-6">
-                Best results with text-based PDF, under 30MB.
-              </div>
+              {uploadState === 'uploading' ? (
+                <div className="w-full max-w-xl upload-stage rounded-xl border border-[#6efcff]/30 bg-[#6efcff]/10 px-4 py-4 mb-6">
+                  <div className="flex items-center justify-between text-[11px] uppercase tracking-[0.16em] text-[#b7fbff]/85">
+                    <span>Pipeline Active</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="mt-3 upload-track progress-shimmer rounded-full">
+                    <div className="upload-track-fill transition-[width] duration-500 ease-out" style={{ width: `${uploadProgress}%` }} />
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-white/55">
+                    {['Upload', 'Process', 'Finalize'].map((phase, idx) => (
+                      <div
+                        key={phase}
+                        className={`rounded-md border px-2 py-2 text-center transition-colors ${
+                          uploadPhaseIndex > idx
+                            ? 'border-[#6efcff]/45 bg-[#6efcff]/14 text-[#c9fdff]'
+                            : 'border-white/10 bg-black/30'
+                        }`}
+                      >
+                        {phase}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-sm text-white/45 mb-6">Drag &amp; Drop your paper here</div>
+                  <div className="text-xs text-white/30 mb-6">Best results with text-based PDF, under 30MB.</div>
+                </>
+              )}
 
               <div className="w-full flex items-center gap-4 mb-7">
                 <div className="h-px bg-white/10 flex-1" />
@@ -134,7 +194,7 @@ export default function SubmitClient() {
                 className="focus-glow cta-premium rounded-full border border-white/20 bg-white/5 px-8 py-2.5 text-sm font-medium text-white/70 hover:bg-white/10 disabled:opacity-50"
                 disabled={uploadState === 'uploading'}
               >
-                {uploadState === 'uploading' ? 'Uploading…' : 'Upload file'}
+                {uploadState === 'uploading' ? 'Processing…' : 'Upload file'}
               </button>
 
               <div className="mt-8 flex items-center justify-center gap-4 sm:gap-6 text-xs text-white/35">

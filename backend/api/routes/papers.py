@@ -1,10 +1,11 @@
-"""API route stubs for paper operations."""
+"""API routes for paper operations."""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.paper import PaperSubmission
+from backend.models.types import JsonDict
 from backend.db.session import get_session
 from backend.db.models import ExtractionLayer, ResearchPaper, ScoringResultDB
 
@@ -12,7 +13,7 @@ router = APIRouter()
 
 
 @router.post("/evaluate")
-async def evaluate_paper(submission: PaperSubmission):
+async def evaluate_paper(submission: PaperSubmission) -> JsonDict:
     """Submit a paper DOI for automated evaluation through the 4-layer pipeline."""
     return {
         "doi": submission.doi,
@@ -22,7 +23,7 @@ async def evaluate_paper(submission: PaperSubmission):
 
 
 @router.get("/stats/summary")
-async def get_stats(session: AsyncSession = Depends(get_session)):
+async def get_stats(session: AsyncSession = Depends(get_session)) -> JsonDict:
     query_total = select(func.count()).select_from(ResearchPaper)
     query_scored = select(func.count()).select_from(ScoringResultDB)
     total_papers = await session.scalar(query_total)
@@ -40,7 +41,7 @@ async def get_low_confidence_review_queue(
     limit: int = 25,
     status: str | None = None,
     session: AsyncSession = Depends(get_session),
-):
+) -> JsonDict:
     safe_limit = max(1, min(limit, 200))
     status_filter = (status or "").strip().lower()
 
@@ -81,6 +82,6 @@ async def get_low_confidence_review_queue(
 
 
 @router.get("/{doi:path}")
-async def get_paper(doi: str):
+async def get_paper(doi: str) -> JsonDict:
     """Retrieve paper metadata and evaluation status by DOI."""
     return {"doi": doi, "status": "not_found"}

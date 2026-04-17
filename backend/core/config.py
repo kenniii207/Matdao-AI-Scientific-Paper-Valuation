@@ -98,6 +98,26 @@ class Settings(BaseSettings):
         default=120,
         alias="EVALUATION_PIPELINE_TIMEOUT_SECONDS",
     )
+    evaluation_job_poll_interval_seconds: float = Field(
+        default=1.5,
+        alias="EVALUATION_JOB_POLL_INTERVAL_SECONDS",
+    )
+    evaluation_job_lease_seconds: int = Field(
+        default=240,
+        alias="EVALUATION_JOB_LEASE_SECONDS",
+    )
+    evaluation_job_max_retries: int = Field(
+        default=4,
+        alias="EVALUATION_JOB_MAX_RETRIES",
+    )
+    evaluation_job_retry_base_seconds: int = Field(
+        default=8,
+        alias="EVALUATION_JOB_RETRY_BASE_SECONDS",
+    )
+    evaluation_stale_sweep_interval_seconds: int = Field(
+        default=30,
+        alias="EVALUATION_STALE_SWEEP_INTERVAL_SECONDS",
+    )
 
     # Service URLs
     database_url: str = Field(
@@ -159,7 +179,8 @@ class Settings(BaseSettings):
     @field_validator("openrouter_api_url", mode="before")
     @classmethod
     def _normalize_openrouter_url(cls, value: str) -> str:
-        return str(value or "").strip()
+        text = str(value or "").strip()
+        return text.rstrip("/") if text else text
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

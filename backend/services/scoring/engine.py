@@ -6,7 +6,6 @@ Integrity Gate: If Dimension 9 score = 1 → Total = 0
 
 from __future__ import annotations
 
-import json
 import logging
 
 from backend.models.scoring import (

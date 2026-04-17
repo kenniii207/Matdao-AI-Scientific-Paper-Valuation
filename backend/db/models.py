@@ -43,9 +43,6 @@ class ResearchPaper(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # pgvector embedding for future semantic search
-    # embedding = Column(Vector(1536))  # uncomment when pgvector extension is enabled
-
     extraction_layers = relationship("ExtractionLayer", back_populates="paper")
     scoring_results = relationship("ScoringResultDB", back_populates="paper")
 
@@ -76,7 +73,6 @@ class ScoringResultDB(Base):
     paper_id = Column(UUID(as_uuid=True), ForeignKey("research_papers.id"), nullable=False)
     version = Column(Integer, default=1)
 
-    # 9 dimension scores
     dim1_score = Column(Float)
     dim2_score = Column(Float)
     dim3_score = Column(Float)
@@ -87,18 +83,35 @@ class ScoringResultDB(Base):
     dim8_score = Column(Float)
     dim9_score = Column(Float)
 
-    # Computed
     total_score = Column(Float)
     grade = Column(String(2))
     integrity_gate_triggered = Column(Boolean, default=False)
 
-    # Audit trail — origin snippets per dimension
     origin_snippets = Column(JSON, default=dict)
 
-    # Weights used
     weights_json = Column(JSON, default=dict)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     scored_by = Column(String(64), default="automated")
 
     paper = relationship("ResearchPaper", back_populates="scoring_results")
+
+
+class EvaluationJob(Base):
+    """Durable background evaluation queue item."""
+
+    __tablename__ = "evaluation_jobs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    paper_id = Column(UUID(as_uuid=True), ForeignKey("research_papers.id"), nullable=False, index=True)
+    status = Column(String(32), nullable=False, default="queued", index=True)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=4)
+    next_retry_at = Column(DateTime, default=datetime.utcnow, index=True)
+    lease_expires_at = Column(DateTime, nullable=True, index=True)
+    worker_id = Column(String(64), nullable=True)
+    last_error = Column(Text, nullable=True)
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

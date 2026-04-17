@@ -4,7 +4,7 @@ function normalizeBaseUrl(input: string): string {
   return input.trim().replace(/\/+$/, '');
 }
 
-export function getApiBaseUrl(): string {
+function getApiBaseUrl(): string {
   const configured = normalizeBaseUrl(process.env.NEXT_PUBLIC_API_URL || '');
   if (configured) return configured;
 

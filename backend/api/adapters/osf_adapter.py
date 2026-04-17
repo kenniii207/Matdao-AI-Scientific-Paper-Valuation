@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from backend.api.adapters.base_adapter import BaseAdapter
+from backend.api.adapters.base_adapter import BaseAdapter, JSONObject
 from backend.core.config import settings
 from backend.models.api_responses import OSFRegistration
 
@@ -18,7 +16,7 @@ class OSFAdapter(BaseAdapter):
             rate_limit=settings.osf_rate_limit,
         )
 
-    async def fetch(self, title: str) -> dict[str, Any]:
+    async def fetch(self, title: str) -> JSONObject:
         """Search registrations by title."""
         path = "/registrations/"
         params = {"filter[title]": title}

@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import cast, TypedDict
 
-from backend.api.adapters.base_adapter import BaseAdapter
+from backend.api.adapters.base_adapter import BaseAdapter, JSONObject, JSONValue
 from backend.core.config import settings
 from backend.models.api_responses import OpenAlexWork
+
+
+class OpenAlexSearchResult(TypedDict):
+    id: str | None
+    doi: str | None
+    title: str | None
+    publication_year: int | None
+    cited_by_count: int | None
+    primary_topic: JSONValue | None
+    relevance_score: float | int | None
 
 
 class OpenAlexAdapter(BaseAdapter):
@@ -24,7 +34,7 @@ class OpenAlexAdapter(BaseAdapter):
         )
         self._default_params = params
 
-    async def fetch(self, doi: str) -> dict[str, Any]:
+    async def fetch(self, doi: str) -> JSONObject:
         """Fetch work by DOI from OpenAlex."""
         path = f"/works/doi:{doi}"
         data = await self._request("GET", path, params=self._default_params)
@@ -44,27 +54,31 @@ class OpenAlexAdapter(BaseAdapter):
             raw_json=data,
         )
 
-    async def get_author(self, author_id: str) -> dict[str, Any]:
+    async def get_author(self, author_id: str) -> JSONObject:
         """Fetch author metrics (h-index, citation count) by OpenAlex author ID."""
         path = f"/authors/{author_id}"
         return await self._request("GET", path, params=self._default_params)
 
-    async def search_works(self, query: str, per_page: int = 5) -> list[dict[str, Any]]:
+    async def search_works(self, query: str, per_page: int = 5) -> list[OpenAlexSearchResult]:
         """Search OpenAlex works for theme-level similarity when DOI lookup is unavailable."""
         if not query.strip():
             return []
         params = {
             **self._default_params,
             "search": query,
-            "per-page": max(1, min(per_page, 10)),
+            "per-page": self._bounded(per_page),
             "sort": "relevance_score:desc",
         }
         data = await self._request("GET", "/works", params=params)
-        results = data.get("results", [])
-        normalized: list[dict[str, Any]] = []
-        for item in results:
-            normalized.append(
-                {
+        results_value = data.get("results")
+        if not isinstance(results_value, list):
+            return []
+
+        return cast(
+            list[OpenAlexSearchResult],
+            self._normalize_items(
+                cast(list[JSONValue], results_value),
+                lambda item: {
                     "id": item.get("id"),
                     "doi": item.get("doi"),
                     "title": item.get("title"),
@@ -72,6 +86,6 @@ class OpenAlexAdapter(BaseAdapter):
                     "cited_by_count": item.get("cited_by_count"),
                     "primary_topic": item.get("primary_topic"),
                     "relevance_score": item.get("relevance_score"),
-                }
-            )
-        return normalized
+                },
+            ),
+        )

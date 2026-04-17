@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import cast, TypedDict
 
-from backend.api.adapters.base_adapter import BaseAdapter
+from backend.api.adapters.base_adapter import BaseAdapter, JSONObject, JSONValue
 from backend.core.config import settings
 from backend.models.api_responses import SemanticScholarPaper
+
+
+class SemanticScholarSearchResult(TypedDict):
+    paper_id: str | None
+    title: str | None
+    citation_count: int | None
+    influential_citation_count: int | None
+    year: int | None
+    venue: str | None
 
 
 class SemanticScholarAdapter(BaseAdapter):
@@ -26,7 +35,7 @@ class SemanticScholarAdapter(BaseAdapter):
             headers=headers,
         )
 
-    async def fetch(self, doi: str) -> dict[str, Any]:
+    async def fetch(self, doi: str) -> JSONObject:
         """Fetch paper by DOI from Semantic Scholar."""
         path = f"/paper/DOI:{doi}"
         return await self._request("GET", path, params={"fields": self.FIELDS})
@@ -45,7 +54,7 @@ class SemanticScholarAdapter(BaseAdapter):
             raw_json=data,
         )
 
-    async def search_papers(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+    async def search_papers(self, query: str, limit: int = 5) -> list[SemanticScholarSearchResult]:
         """Search Semantic Scholar for semantically similar papers."""
         if not query.strip():
             return []
@@ -54,21 +63,25 @@ class SemanticScholarAdapter(BaseAdapter):
             "/paper/search",
             params={
                 "query": query,
-                "limit": max(1, min(limit, 10)),
+                "limit": self._bounded(limit),
                 "fields": self.SEARCH_FIELDS,
             },
         )
-        papers = data.get("data", [])
-        normalized: list[dict[str, Any]] = []
-        for paper in papers:
-            normalized.append(
-                {
+        papers_value = data.get("data")
+        if not isinstance(papers_value, list):
+            return []
+
+        return cast(
+            list[SemanticScholarSearchResult],
+            self._normalize_items(
+                cast(list[JSONValue], papers_value),
+                lambda paper: {
                     "paper_id": paper.get("paperId"),
                     "title": paper.get("title"),
                     "citation_count": paper.get("citationCount"),
                     "influential_citation_count": paper.get("influentialCitationCount"),
                     "year": paper.get("year"),
                     "venue": paper.get("venue"),
-                }
-            )
-        return normalized
+                },
+            ),
+        )

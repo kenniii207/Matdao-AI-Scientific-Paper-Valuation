@@ -28,15 +28,8 @@ export default function AppHeader() {
           </nav>
         ) : null}
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-on-surface/70 hover:bg-white/10 transition-colors"
-            aria-label="Profile"
-          >
-            <span className="font-medium">Profile</span>
-            <span className="material-symbols-outlined text-base leading-none">expand_more</span>
-          </button>
+        <div className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-on-surface/70">
+          Prototype
         </div>
       </div>
     </header>

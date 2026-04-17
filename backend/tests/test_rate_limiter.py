@@ -1,6 +1,5 @@
 """Tests for rate limiter."""
 
-import asyncio
 import time
 import pytest
 
@@ -36,7 +35,6 @@ class TestExponentialBackoff:
         assert delay == 1.0
 
     def test_doubles_each_attempt(self):
-        d0 = exponential_backoff_delay(0, base_seconds=1.0, jitter=False)
         d1 = exponential_backoff_delay(1, base_seconds=1.0, jitter=False)
         d2 = exponential_backoff_delay(2, base_seconds=1.0, jitter=False)
         assert d1 == 2.0

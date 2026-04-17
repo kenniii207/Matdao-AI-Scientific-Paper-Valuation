@@ -1,7 +1,5 @@
 """Tests for Dimension 2 Scientific Quality scoring."""
 
-import pytest
-
 from backend.services.scoring.dimension2 import score_dimension2
 from backend.models.api_responses import (
     SemanticScholarPaper,

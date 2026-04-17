@@ -3,9 +3,8 @@ import SubmitClient from './SubmitClient';
 
 export default function SubmitPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<div className="min-h-screen bg-black" aria-busy="true" aria-live="polite" />}>
       <SubmitClient />
     </Suspense>
   );
 }
-

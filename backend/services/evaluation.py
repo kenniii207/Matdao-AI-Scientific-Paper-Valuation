@@ -12,6 +12,16 @@ from backend.core.json_utils import coerce_jsonable
 
 logger = logging.getLogger(__name__)
 _RECENT_INSIGHTS: deque[str] = deque(maxlen=50)
+_DEFAULT_PROVIDER_SEQUENCE = [
+    "gemini",
+    "glm",
+    "openrouter",
+    "qwen",
+    "manus",
+    "kimi",
+    "minimax",
+    "liquid",
+]
 _GENERIC_PHRASES = {
     "strong scientific rigor",
     "limited commercialization signals",
@@ -89,7 +99,7 @@ def _detect_generic_output(
 def _safe_float(value: Any, default: float = _DEFAULT_SCORE) -> tuple[float, bool]:
     try:
         return float(value), False
-    except Exception:
+    except (TypeError, ValueError):
         return default, True
 
 
@@ -169,7 +179,7 @@ def _has_structured_scores(payload: Dict[str, Any] | Any) -> bool:
         try:
             float(score)
             valid_count += 1
-        except Exception:
+        except (TypeError, ValueError):
             continue
     return valid_count >= 5
 
@@ -198,7 +208,7 @@ class ScientificEvaluator:
     def _provider_sequence(self) -> list[str]:
         configured = [item.lower() for item in self._parse_csv(settings.llm_fallback_order)]
         if not configured:
-            configured = ["gemini", "glm", "openrouter"]
+            configured = _DEFAULT_PROVIDER_SEQUENCE[:]
         deduped: list[str] = []
         seen: set[str] = set()
         for item in configured:
@@ -322,12 +332,15 @@ class ScientificEvaluator:
                         "provider": provider_name,
                         "status_code": status,
                     }
-                except Exception as exc:
+                except httpx.RequestError as exc:
                     if attempt < 2:
                         await asyncio.sleep(0.5 * attempt)
                         continue
                     logger.error("%s evaluation failed: %s", provider_name.upper(), exc)
-                    return {"error": str(exc), "provider": provider_name}
+                    return {"error": f"{provider_name}_request_error", "provider": provider_name}
+                except (json.JSONDecodeError, ValueError, TypeError, KeyError, IndexError) as exc:
+                    logger.error("%s returned invalid payload: %s", provider_name.upper(), exc)
+                    return {"error": f"{provider_name}_invalid_payload", "provider": provider_name}
 
     async def _evaluate_with_gemini(self, prompt: str) -> Dict[str, Any]:
         api_key = settings.gemini_api_key
@@ -374,12 +387,15 @@ class ScientificEvaluator:
                         "provider": "gemini",
                         "status_code": status,
                     }
-                except Exception as exc:
+                except httpx.RequestError as exc:
                     if attempt < 2:
                         await asyncio.sleep(0.6 * attempt)
                         continue
                     logger.error("Gemini evaluation failed: %s", exc)
-                    return {"error": str(exc), "provider": "gemini"}
+                    return {"error": "gemini_request_error", "provider": "gemini"}
+                except (json.JSONDecodeError, ValueError, TypeError, KeyError, IndexError) as exc:
+                    logger.error("Gemini returned invalid payload: %s", exc)
+                    return {"error": "gemini_invalid_payload", "provider": "gemini"}
 
     async def _evaluate_with_glm(self, prompt: str) -> Dict[str, Any]:
         return await self._evaluate_with_openai_compatible(
@@ -395,9 +411,7 @@ class ScientificEvaluator:
         if not api_key:
             return {"error": "openrouter_not_configured", "provider": "openrouter"}
 
-        url = _normalize_chat_completions_url(
-            settings.openrouter_api_url or "https://openrouter.ai/api/v1/chat/completions"
-        )
+        url = _normalize_chat_completions_url(settings.openrouter_api_url)
         models = self._parse_csv(settings.openrouter_models)
         if not models:
             return {"error": "openrouter_models_missing", "provider": "openrouter"}
@@ -442,8 +456,15 @@ class ScientificEvaluator:
                         parsed["_model"] = model
                         return parsed
                     model_errors[model] = "invalid_json_payload"
-                except Exception as exc:
-                    model_errors[model] = str(exc)
+                except httpx.HTTPStatusError as exc:
+                    status = exc.response.status_code if exc.response else None
+                    model_errors[model] = f"http_{status}"
+                    continue
+                except httpx.RequestError:
+                    model_errors[model] = "request_error"
+                    continue
+                except (json.JSONDecodeError, ValueError, TypeError, KeyError, IndexError):
+                    model_errors[model] = "invalid_payload"
                     continue
             return {
                 "error": "openrouter_all_models_failed",
@@ -735,6 +756,7 @@ class ScientificEvaluator:
         }
 
         attempted = 0
+        selected_attempt = 0
         for provider_name in sequence:
             runner = provider_runners.get(provider_name)
             if runner is None:
@@ -745,6 +767,7 @@ class ScientificEvaluator:
             if _has_structured_scores(provider_result):
                 selected_result = provider_result
                 selected_provider = provider_name if attempted == 1 else f"{provider_name}_fallback"
+                selected_attempt = attempted
                 break
             provider_errors[provider_name] = str(provider_result.get("error") or "no_structured_scores")
 
@@ -770,6 +793,8 @@ class ScientificEvaluator:
             "complexity_band": complexity_band,
             "base_order": base_sequence,
             "effective_order": sequence,
+            "selected_attempt": selected_attempt,
+            "fallback_used": selected_attempt > 1,
         }
         repaired_result["_quality_signals"] = quality_signals
 

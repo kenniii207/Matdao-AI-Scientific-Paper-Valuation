@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from collections.abc import Callable, Mapping
+from typing import Optional, TypeAlias
 
 import httpx
 
@@ -15,6 +17,10 @@ from backend.core.exceptions import AdapterError, RateLimitExceeded
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = 3
+JSONPrimitive: TypeAlias = str | int | float | bool | None
+JSONValue: TypeAlias = JSONPrimitive | dict[str, "JSONValue"] | list["JSONValue"]
+JSONObject: TypeAlias = dict[str, JSONValue]
+QueryParams: TypeAlias = Mapping[str, str | int | float | bool | None]
 
 
 class BaseAdapter(ABC):
@@ -44,9 +50,9 @@ class BaseAdapter(ABC):
         self,
         method: str,
         path: str,
-        params: Optional[dict] = None,
-        json_body: Optional[dict] = None,
-    ) -> dict[str, Any]:
+        params: Optional[QueryParams] = None,
+        json_body: Optional[JSONObject] = None,
+    ) -> JSONObject:
         """Make an HTTP request with rate limiting and exponential backoff on 429."""
         client = await self._get_client()
 
@@ -67,7 +73,6 @@ class BaseAdapter(ABC):
                             MAX_RETRIES,
                             delay,
                         )
-                        import asyncio
                         await asyncio.sleep(delay)
                         continue
                     raise RateLimitExceeded(
@@ -75,7 +80,12 @@ class BaseAdapter(ABC):
                     )
 
                 response.raise_for_status()
-                return response.json()
+                payload = response.json()
+                if not isinstance(payload, dict):
+                    raise AdapterError(
+                        f"{self.__class__.__name__}: expected JSON object response, got {type(payload).__name__}"
+                    )
+                return payload
 
             except httpx.HTTPStatusError as exc:
                 raise AdapterError(
@@ -92,7 +102,6 @@ class BaseAdapter(ABC):
                         delay,
                         str(exc),
                     )
-                    import asyncio
                     await asyncio.sleep(delay)
                     continue
                 raise AdapterError(
@@ -101,13 +110,29 @@ class BaseAdapter(ABC):
 
         raise AdapterError(f"{self.__class__.__name__}: all retries exhausted")
 
-    def _capture_snippet(self, data: dict, max_length: int = 500) -> str:
+    def _capture_snippet(self, data: JSONObject, max_length: int = 500) -> str:
         """Capture origin_snippet from API response for auditability."""
         raw = json.dumps(data, default=str)
         return raw[:max_length]
 
+    @staticmethod
+    def _bounded(value: int, minimum: int = 1, maximum: int = 10) -> int:
+        """Bound caller-provided limits to safe API ranges."""
+        return max(minimum, min(value, maximum))
+
+    @staticmethod
+    def _normalize_items(
+        items: list[JSONValue], transform: Callable[[JSONObject], JSONObject]
+    ) -> list[JSONObject]:
+        """Normalize a list of dict payload items while skipping non-object entries."""
+        normalized: list[JSONObject] = []
+        for item in items:
+            if isinstance(item, dict):
+                normalized.append(transform(item))
+        return normalized
+
     @abstractmethod
-    async def fetch(self, identifier: str) -> dict[str, Any]:
+    async def fetch(self, identifier: str) -> JSONObject:
         """Fetch data for a given identifier (DOI, title, etc.)."""
 
     async def health_check(self) -> bool:
@@ -116,7 +141,7 @@ class BaseAdapter(ABC):
             client = await self._get_client()
             response = await client.get("/")
             return response.status_code < 500
-        except Exception:
+        except httpx.RequestError:
             return False
 
     async def close(self):

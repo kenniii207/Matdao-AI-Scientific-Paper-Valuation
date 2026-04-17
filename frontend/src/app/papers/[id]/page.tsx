@@ -6,37 +6,7 @@ import { useParams } from 'next/navigation';
 import AppHeader from '@/components/AppHeader';
 import AppFooter from '@/components/AppFooter';
 import { apiUrl, fetchWithTimeout } from '@/lib/api';
-
-type Dimension = {
-  dimension_id: number;
-  dimension_name: string;
-  raw_score: number; // 1..5
-  rationale?: string;
-  origin_snippet?: string;
-};
-
-type ScoringResponse = {
-  paper_id: string;
-  paper_title?: string;
-  doi?: string;
-  total_score: number;
-  grade: string;
-  integrity_gate_triggered: boolean;
-  confidence_tier?: string;
-  insight?: string;
-  investor_fit?: string[];
-  warnings?: string[];
-  executive_summary?: string;
-  investment_recommendation?: string;
-  dimensions: Dimension[];
-};
-
-type ScoringPendingResponse = {
-  paper_id: string;
-  doi?: string;
-  status: string;
-  error?: string;
-};
+import type { ScoringPendingResponse, ScoringResponse } from '@/lib/types/scoring';
 
 function clamp(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
@@ -137,7 +107,6 @@ export default function PaperResultsPage() {
 
   const progressPercent = useMemo(() => {
     if (!loading) return 100;
-    // UX progress curve; real compute happens on backend.
     return clamp(Math.round(15 + (elapsedMs / 120000) * 70), 15, 85);
   }, [elapsedMs, loading]);
   const elapsedSeconds = useMemo(() => Math.floor(elapsedMs / 1000), [elapsedMs]);

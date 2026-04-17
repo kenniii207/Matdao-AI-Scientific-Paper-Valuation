@@ -16,6 +16,7 @@ from backend.api.adapters.openalex_adapter import OpenAlexAdapter
 from backend.api.adapters.semantic_scholar_adapter import SemanticScholarAdapter
 from backend.api.adapters.serpapi_scholar_adapter import SerpApiScholarAdapter
 from backend.core.config import settings
+from backend.core.exceptions import AdapterError
 
 STOPWORDS = {
     "the", "and", "for", "with", "that", "this", "from", "are", "was", "were",
@@ -37,6 +38,10 @@ _SOURCE_HEALTH_COUNTS: dict[str, dict[str, int]] = {
     "google_scholar": {"success": 0, "error": 0, "cache_hit": 0},
 }
 logger = logging.getLogger(__name__)
+
+
+def _elapsed_ms(start: float) -> float:
+    return round((time.perf_counter() - start) * 1000, 2)
 
 
 def _clean_line(line: str) -> str:
@@ -183,20 +188,20 @@ async def _get_source_payload(
         return cached_payload
     try:
         payload = await _with_timeout(factory(), timeout_seconds=timeout_seconds)
-        await _cache_set(
-            _EXTERNAL_API_CACHE,
-            cache_key,
-            payload,
-            settings.external_api_cache_ttl_seconds,
-            settings.external_api_cache_max_entries,
-            settings.enable_external_api_cache,
-        )
-        await _record_source_health(source, "success")
-        return payload
-    except Exception as exc:
+    except (asyncio.TimeoutError, AdapterError, ValueError, TypeError) as exc:
         source_errors[error_key] = str(exc)
         await _record_source_health(source, "error")
         return None
+    await _cache_set(
+        _EXTERNAL_API_CACHE,
+        cache_key,
+        payload,
+        settings.external_api_cache_ttl_seconds,
+        settings.external_api_cache_max_entries,
+        settings.enable_external_api_cache,
+    )
+    await _record_source_health(source, "success")
+    return payload
 
 
 def _candidate_text(candidate: dict[str, Any]) -> str:
@@ -277,12 +282,9 @@ def _rank_candidates_by_embedding(
     ranked: list[dict[str, Any]] = []
     for idx, candidate in enumerate(candidates, start=1):
         candidate_vector = vectors[idx]
-        try:
-            similarity = float((query_vector * candidate_vector).sum())
-        except Exception:
-            similarity = float(
-                sum(float(a) * float(b) for a, b in zip(query_vector, candidate_vector))
-            )
+        similarity = float(
+            sum(float(a) * float(b) for a, b in zip(query_vector, candidate_vector))
+        )
         ranked.append({**candidate, "semantic_score": round(similarity, 6)})
     ranked.sort(key=lambda item: item["semantic_score"], reverse=True)
     final_top = max(1, min(top_k, len(ranked)))
@@ -359,7 +361,7 @@ async def _apply_local_retrieval_phase2(
     stage_timings = enriched.setdefault("stage_timings_ms", {})
     stage_start = time.perf_counter()
     if not settings.enable_local_prefilter:
-        stage_timings["local_prefilter_ms"] = round((time.perf_counter() - stage_start) * 1000, 2)
+        stage_timings["local_prefilter_ms"] = _elapsed_ms(stage_start)
         return
 
     dedupe_stats: dict[str, int] = {}
@@ -372,13 +374,13 @@ async def _apply_local_retrieval_phase2(
 
     if not candidates:
         enriched["source_errors"]["local_prefilter"] = "Skipped: no candidates from external sources"
-        stage_timings["local_prefilter_ms"] = round((time.perf_counter() - stage_start) * 1000, 2)
+        stage_timings["local_prefilter_ms"] = _elapsed_ms(stage_start)
         return
 
     query_text = _build_query_text(document_profile)
     if len(query_text) < 12:
         enriched["source_errors"]["local_prefilter"] = "Skipped: query text too short"
-        stage_timings["local_prefilter_ms"] = round((time.perf_counter() - stage_start) * 1000, 2)
+        stage_timings["local_prefilter_ms"] = _elapsed_ms(stage_start)
         return
 
     try:
@@ -469,14 +471,14 @@ async def _apply_local_retrieval_phase2(
             "enabled": False,
             "skipped_reason": "model_load_timeout",
         }
-    except Exception as exc:
+    except (RuntimeError, ValueError, TypeError, OSError, ImportError) as exc:
         enriched["source_errors"]["local_prefilter"] = str(exc)
         enriched["local_retrieval"] = {
             "enabled": False,
             "skipped_reason": str(exc),
         }
     finally:
-        stage_timings["local_prefilter_ms"] = round((time.perf_counter() - stage_start) * 1000, 2)
+        stage_timings["local_prefilter_ms"] = _elapsed_ms(stage_start)
 
 
 async def build_external_enrichment(
@@ -531,7 +533,7 @@ async def build_external_enrichment(
                 enriched["openalex"] = doi_tasks[0]
             if doi_tasks[1] is not None:
                 enriched["semantic_scholar"] = doi_tasks[1]
-        stage_timings["doi_lookup_ms"] = round((time.perf_counter() - doi_lookup_start) * 1000, 2)
+        stage_timings["doi_lookup_ms"] = _elapsed_ms(doi_lookup_start)
 
         theme_search_start = time.perf_counter()
         if queries and len(queries[0]) >= 12:
@@ -593,7 +595,7 @@ async def build_external_enrichment(
             enriched["source_errors"]["theme_search"] = "Skipped: no document query seed available"
         else:
             enriched["source_errors"]["theme_search"] = "Skipped: extracted query too short"
-        stage_timings["theme_search_ms"] = round((time.perf_counter() - theme_search_start) * 1000, 2)
+        stage_timings["theme_search_ms"] = _elapsed_ms(theme_search_start)
 
         dedupe_stats: dict[str, int] = {}
         deduped_candidates = _collect_similarity_candidates(
@@ -611,7 +613,7 @@ async def build_external_enrichment(
         if serpapi is not None:
             await serpapi.close()
 
-    stage_timings["build_external_enrichment_ms"] = round((time.perf_counter() - total_start) * 1000, 2)
+    stage_timings["build_external_enrichment_ms"] = _elapsed_ms(total_start)
     logger.info(
         "Enrichment completed doi=%s timings_ms=%s source_errors=%s",
         doi,

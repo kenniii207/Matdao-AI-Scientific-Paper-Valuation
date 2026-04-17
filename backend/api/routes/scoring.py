@@ -10,8 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.api.adapters.openalex_adapter import OpenAlexAdapter
 from backend.api.adapters.semantic_scholar_adapter import SemanticScholarAdapter
 from backend.api.adapters.serpapi_scholar_adapter import SerpApiScholarAdapter
+from backend.core.exceptions import AdapterError, RateLimitExceeded
 from backend.db.models import ExtractionLayer, ResearchPaper, ScoringResultDB
 from backend.db.session import get_session
+from backend.models.types import JsonDict
 from backend.services.scoring.dimension2 import score_dimension2
 from backend.services.scoring.dimension9 import score_dimension9
 from backend.services.scoring.engine import compute_score
@@ -19,9 +21,9 @@ from backend.services.scoring.engine import compute_score
 router = APIRouter()
 
 def _derive_frontend_insights(
-    dimensions: list[dict],
+    dimensions: list[JsonDict],
     integrity_gate_triggered: bool,
-    eval_results: dict | None,
+    eval_results: JsonDict | None,
 ) -> tuple[str, list[str], list[str]]:
     if eval_results:
         insight = str(eval_results.get("insight") or "").strip()
@@ -73,9 +75,9 @@ def _derive_frontend_insights(
 
 
 def _derive_executive_summary(
-    eval_results: dict | None,
+    eval_results: JsonDict | None,
     insight: str,
-    dimensions: list[dict],
+    dimensions: list[JsonDict],
     integrity_gate_triggered: bool,
     total_score: float,
     grade: str,
@@ -122,7 +124,7 @@ def _derive_executive_summary(
 
 
 def _derive_investment_recommendation(
-    eval_results: dict | None,
+    eval_results: JsonDict | None,
     integrity_gate_triggered: bool,
     total_score: float,
     grade: str,
@@ -143,7 +145,7 @@ def _derive_investment_recommendation(
 
 def _derive_confidence_tier(
     scored_by: str | None,
-    eval_results: dict | None,
+    eval_results: JsonDict | None,
 ) -> str:
     eval_payload = eval_results if isinstance(eval_results, dict) else {}
     quality_signals = eval_payload.get("_quality_signals")
@@ -163,7 +165,7 @@ def _derive_confidence_tier(
         return "MEDIUM (REPAIRED)"
 
     provider = str(quality_signals.get("llm_provider") or "").lower().strip()
-    if provider in {"gemini", "glm", "glm_fallback"}:
+    if provider and provider != "none":
         return "HIGH (LLM_ENRICHED)"
 
     scored_by_lower = str(scored_by or "").lower()
@@ -194,18 +196,19 @@ async def evaluate_scoring_for_doi(
     try:
         try:
             s2_paper = await s2_adapter.get_paper(doi=paper.doi)
-        except Exception as exc:
+        except (AdapterError, RateLimitExceeded) as exc:
             source_errors["semantic_scholar"] = str(exc)
 
         try:
             oa_work = await oa_adapter.get_work(doi=paper.doi)
-        except Exception as exc:
+        except (AdapterError, RateLimitExceeded) as exc:
             source_errors["openalex"] = str(exc)
 
         try:
-            query = paper.doi if not paper.doi.startswith("10.matdao/") else (paper.title or paper.doi)
+            paper_doi = paper.doi or ""
+            query = paper_doi if not paper_doi.startswith("10.matdao/") else (paper.title or paper_doi)
             serpapi_paper = await serp_adapter.get_top_paper(query=query)
-        except Exception as exc:
+        except (AdapterError, RateLimitExceeded) as exc:
             source_errors["serpapi_google_scholar"] = str(exc)
 
     finally:
@@ -276,7 +279,6 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
         .limit(1)
     )
     if row is None:
-        # Avoid hard 404 during background jobs; return pipeline state instead.
         layer = await session.scalar(
             select(ExtractionLayer)
             .where(ExtractionLayer.paper_id == paper.id)
@@ -336,13 +338,11 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
         if isinstance(maybe_eval, dict):
             eval_results = maybe_eval
     
-    # Construct frontend-friendly response
     dimensions = []
     for d_id in range(1, 10):
         raw_val = getattr(row, f"dim{d_id}_score") or 3.0
         snip_data = (row.origin_snippets or {}).get(str(d_id), "{}")
         
-        # Parse rationale/snippet if stored as JSON string
         rationale = ""
         snippet = ""
         try:
@@ -352,7 +352,7 @@ async def get_scoring_result_by_id(paper_id: str, session: AsyncSession = Depend
                 snippet = parsed.get("snippet", "")
             else:
                 snippet = str(parsed)
-        except:
+        except (TypeError, ValueError, json.JSONDecodeError):
             snippet = str(snip_data)
 
         dimensions.append({

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from backend.api.adapters.base_adapter import BaseAdapter
+from backend.api.adapters.base_adapter import BaseAdapter, JSONObject
 from backend.core.config import settings
 from backend.models.api_responses import ClinicalTrial
 
@@ -18,7 +16,7 @@ class ClinicalTrialsAdapter(BaseAdapter):
             rate_limit=settings.clinical_trials_rate_limit,
         )
 
-    async def fetch(self, query: str) -> dict[str, Any]:
+    async def fetch(self, query: str) -> JSONObject:
         """Search studies by query term."""
         params = {
             "query.term": query,

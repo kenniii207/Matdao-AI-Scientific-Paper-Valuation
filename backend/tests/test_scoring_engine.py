@@ -3,8 +3,6 @@
 Key invariant: A retracted paper (Dimension 9 = 1) MUST always score 0.
 """
 
-import pytest
-
 from backend.services.scoring.engine import compute_score
 from backend.models.scoring import DEFAULT_WEIGHTS, Grade
 

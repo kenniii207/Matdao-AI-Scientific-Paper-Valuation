@@ -22,6 +22,18 @@ from backend.models.api_responses import (
 logger = logging.getLogger(__name__)
 
 
+def _score_citation_count(count: int, *, high: int, medium: int, low: int, minimal: int) -> float:
+    if count >= high:
+        return 5.0
+    if count >= medium:
+        return 4.0
+    if count >= low:
+        return 3.0
+    if count >= minimal:
+        return 2.0
+    return 1.5
+
+
 def score_dimension2(
     s2_paper: Optional[SemanticScholarPaper] = None,
     oa_work: Optional[OpenAlexWork] = None,
@@ -39,45 +51,24 @@ def score_dimension2(
     # 1. Citation Velocity
     if s2_paper and s2_paper.influential_citation_count is not None:
         icc = s2_paper.influential_citation_count
-        if icc >= 50:
-            sub_scores.append(5.0)
-        elif icc >= 20:
-            sub_scores.append(4.0)
-        elif icc >= 5:
-            sub_scores.append(3.0)
-        elif icc >= 1:
-            sub_scores.append(2.0)
-        else:
-            sub_scores.append(1.5)
+        sub_scores.append(
+            _score_citation_count(icc, high=50, medium=20, low=5, minimal=1)
+        )
         snippets["influentialCitationCount"] = icc
 
     # 2. Venue Rank
     if oa_work and oa_work.cited_by_count is not None:
         cbc = oa_work.cited_by_count
-        if cbc >= 500:
-            sub_scores.append(5.0)
-        elif cbc >= 100:
-            sub_scores.append(4.0)
-        elif cbc >= 20:
-            sub_scores.append(3.0)
-        elif cbc >= 5:
-            sub_scores.append(2.0)
-        else:
-            sub_scores.append(1.5)
+        sub_scores.append(
+            _score_citation_count(cbc, high=500, medium=100, low=20, minimal=5)
+        )
         snippets["cited_by_count"] = cbc
 
     if serpapi_paper and serpapi_paper.cited_by_count is not None:
         serp_citations = serpapi_paper.cited_by_count
-        if serp_citations >= 500:
-            sub_scores.append(5.0)
-        elif serp_citations >= 100:
-            sub_scores.append(4.0)
-        elif serp_citations >= 20:
-            sub_scores.append(3.0)
-        elif serp_citations >= 5:
-            sub_scores.append(2.0)
-        else:
-            sub_scores.append(1.5)
+        sub_scores.append(
+            _score_citation_count(serp_citations, high=500, medium=100, low=20, minimal=5)
+        )
         snippets["google_scholar_cited_by_count"] = serp_citations
 
     # 3. Pre-registration

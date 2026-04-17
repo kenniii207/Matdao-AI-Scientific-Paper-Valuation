@@ -6,6 +6,8 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
+from backend.models.types import JsonDict
+
 
 # --- OpenAlex ---
 
@@ -17,9 +19,9 @@ class OpenAlexWork(BaseModel):
     relevance_score: Optional[float] = None
     cited_by_count: Optional[int] = None
     publication_date: Optional[str] = None
-    primary_topic: Optional[dict] = None
-    authorships: list[dict] = Field(default_factory=list)
-    raw_json: Optional[dict] = Field(default=None, exclude=True)
+    primary_topic: Optional[JsonDict] = None
+    authorships: list[JsonDict] = Field(default_factory=list)
+    raw_json: Optional[JsonDict] = Field(default=None, exclude=True)
 
 
 # --- Semantic Scholar ---
@@ -33,8 +35,8 @@ class SemanticScholarPaper(BaseModel):
     citation_count: Optional[int] = None
     year: Optional[int] = None
     venue: Optional[str] = None
-    authors: list[dict] = Field(default_factory=list)
-    raw_json: Optional[dict] = Field(default=None, exclude=True)
+    authors: list[JsonDict] = Field(default_factory=list)
+    raw_json: Optional[JsonDict] = Field(default=None, exclude=True)
 
 
 # --- SerpAPI (Google Scholar) ---
@@ -46,7 +48,7 @@ class SerpApiScholarPaper(BaseModel):
     result_id: Optional[str] = None
     cited_by_count: Optional[int] = None
     publication_info_summary: Optional[str] = None
-    raw_json: Optional[dict] = Field(default=None, exclude=True)
+    raw_json: Optional[JsonDict] = Field(default=None, exclude=True)
 
 
 # --- NIH RePORTER ---
@@ -60,7 +62,7 @@ class NIHGrant(BaseModel):
     organization: Optional[str] = None
     total_cost: Optional[float] = None
     fiscal_year: Optional[int] = None
-    raw_json: Optional[dict] = Field(default=None, exclude=True)
+    raw_json: Optional[JsonDict] = Field(default=None, exclude=True)
 
 
 # --- OSF ---
@@ -72,7 +74,7 @@ class OSFRegistration(BaseModel):
     title: Optional[str] = None
     is_preregistration: bool = False
     date_registered: Optional[str] = None
-    raw_json: Optional[dict] = Field(default=None, exclude=True)
+    raw_json: Optional[JsonDict] = Field(default=None, exclude=True)
 
 
 # --- ClinicalTrials.gov ---
@@ -85,4 +87,4 @@ class ClinicalTrial(BaseModel):
     overall_status: Optional[str] = None
     has_results: bool = False
     is_terminated_or_suspended: bool = False
-    raw_json: Optional[dict] = Field(default=None, exclude=True)
+    raw_json: Optional[JsonDict] = Field(default=None, exclude=True)

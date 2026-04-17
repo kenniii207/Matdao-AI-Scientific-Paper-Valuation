@@ -1,7 +1,5 @@
 """Tests for Dimension 9 Integrity Gate via governance red-flag detection."""
 
-import pytest
-
 from backend.services.scoring.dimension9 import score_dimension9
 from backend.models.api_responses import NIHGrant
 

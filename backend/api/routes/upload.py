@@ -5,17 +5,19 @@ import json
 import asyncio
 import time
 import uuid
+from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
-from typing import Dict, Any
+from typing import Any
 from pathlib import Path
-from sqlalchemy import select, func
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 import fitz  # PyMuPDF
 
 from backend.db.session import get_session, async_session_factory
-from backend.db.models import ResearchPaper, ExtractionLayer, ScoringResultDB
+from backend.db.models import EvaluationJob, ExtractionLayer, ResearchPaper, ScoringResultDB
 from backend.core.config import settings
 from backend.core.json_utils import coerce_jsonable
+from backend.models.types import JsonDict
 from backend.api.adapters.glm_ocr_adapter import GLMOCRAdapter
 from backend.services.research_enrichment import (
     build_document_profile,
@@ -28,6 +30,9 @@ router = APIRouter()
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 _EVALUATION_SEMAPHORE = asyncio.Semaphore(max(1, int(settings.max_parallel_evaluations)))
+_QUEUE_WORKER_ID = f"eval-worker-{uuid.uuid4().hex[:10]}"
+_WORKER_STOP_EVENT = asyncio.Event()
+_WORKER_TASKS: list[asyncio.Task[None]] = []
 
 DOI_REGEX = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
 
@@ -65,15 +70,15 @@ def _is_likely_pdf(file: UploadFile, contents: bytes) -> bool:
 def _safe_float(value: Any, default: float = 0.0) -> float:
     try:
         return float(value)
-    except Exception:
+    except (TypeError, ValueError):
         return default
 
 
 def _assess_low_confidence(
-    eval_results: Dict[str, Any],
-    enriched_data: Dict[str, Any],
+    eval_results: JsonDict,
+    enriched_data: JsonDict,
     raw_scores: dict[int, float],
-) -> dict[str, Any]:
+) -> JsonDict:
     quality_signals = eval_results.get("_quality_signals", {}) if isinstance(eval_results, dict) else {}
     quality_signals = quality_signals if isinstance(quality_signals, dict) else {}
     source_errors = enriched_data.get("source_errors", {}) if isinstance(enriched_data, dict) else {}
@@ -143,7 +148,7 @@ def _is_neutral_nine_grid(score_row: Any) -> bool:
 
 def _should_rerun_existing_score(
     score_row: Any,
-    eval_results: dict[str, Any] | None,
+    eval_results: JsonDict | None,
 ) -> tuple[bool, list[str]]:
     reasons: list[str] = []
     eval_payload = eval_results if isinstance(eval_results, dict) else {}
@@ -179,7 +184,7 @@ def _should_rerun_existing_score(
 async def _latest_eval_results_for_paper(
     session: AsyncSession,
     paper_id: uuid.UUID,
-) -> dict[str, Any]:
+) -> JsonDict:
     layers = (
         await session.scalars(
             select(ExtractionLayer)
@@ -196,15 +201,181 @@ async def _latest_eval_results_for_paper(
     return {}
 
 
+def _utcnow() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _retry_delay_seconds(attempt_count: int) -> int:
+    base = max(1, int(settings.evaluation_job_retry_base_seconds))
+    bounded_attempt = max(1, min(attempt_count, 8))
+    return base * (2 ** (bounded_attempt - 1))
+
+
+async def _enqueue_evaluation_job_db(
+    session: AsyncSession,
+    paper_id: uuid.UUID,
+    *,
+    max_attempts: int | None = None,
+) -> bool:
+    active = await session.scalar(
+        select(EvaluationJob)
+        .where(
+            EvaluationJob.paper_id == paper_id,
+            EvaluationJob.status.in_(["queued", "retry", "processing"]),
+        )
+        .order_by(EvaluationJob.created_at.desc())
+        .limit(1)
+    )
+    if active is not None:
+        return False
+
+    session.add(
+        EvaluationJob(
+            paper_id=paper_id,
+            status="queued",
+            attempt_count=0,
+            max_attempts=max_attempts or int(settings.evaluation_job_max_retries),
+            next_retry_at=_utcnow(),
+            lease_expires_at=None,
+            worker_id=None,
+        )
+    )
+    return True
+
+
+async def _claim_next_evaluation_job() -> EvaluationJob | None:
+    now = _utcnow()
+    lease_deadline = now + timedelta(seconds=max(15, int(settings.evaluation_job_lease_seconds)))
+    async with async_session_factory() as session:
+        async with session.begin():
+            job = await session.scalar(
+                select(EvaluationJob)
+                .where(
+                    or_(
+                        and_(
+                            EvaluationJob.status.in_(["queued", "retry"]),
+                            or_(EvaluationJob.next_retry_at.is_(None), EvaluationJob.next_retry_at <= now),
+                        ),
+                        and_(
+                            EvaluationJob.status == "processing",
+                            EvaluationJob.lease_expires_at.is_not(None),
+                            EvaluationJob.lease_expires_at < now,
+                        ),
+                    )
+                )
+                .order_by(EvaluationJob.created_at.asc())
+                .with_for_update(skip_locked=True)
+                .limit(1)
+            )
+            if job is None:
+                return None
+            job.status = "processing"
+            job.attempt_count = int(job.attempt_count or 0) + 1
+            job.worker_id = _QUEUE_WORKER_ID
+            job.lease_expires_at = lease_deadline
+            if job.started_at is None:
+                job.started_at = now
+            job.updated_at = now
+            await session.flush()
+            await session.refresh(job)
+            return job
+
+
+async def _mark_job_completed(job_id: uuid.UUID) -> None:
+    now = _utcnow()
+    async with async_session_factory() as session:
+        job = await session.get(EvaluationJob, job_id)
+        if job is None:
+            return
+        job.status = "completed"
+        job.finished_at = now
+        job.lease_expires_at = None
+        job.worker_id = None
+        job.updated_at = now
+        await session.commit()
+
+
+async def _mark_job_failed(job_id: uuid.UUID, error: str) -> None:
+    now = _utcnow()
+    async with async_session_factory() as session:
+        job = await session.get(EvaluationJob, job_id)
+        if job is None:
+            return
+
+        attempt_count = int(job.attempt_count or 0)
+        max_attempts = max(1, int(job.max_attempts or settings.evaluation_job_max_retries))
+        if attempt_count >= max_attempts:
+            job.status = "dead"
+            job.finished_at = now
+            job.next_retry_at = None
+            layer_status = "error"
+        else:
+            delay_seconds = _retry_delay_seconds(attempt_count)
+            job.status = "retry"
+            job.next_retry_at = now + timedelta(seconds=delay_seconds)
+            layer_status = "queued"
+        job.last_error = error[:2000]
+        job.lease_expires_at = None
+        job.worker_id = None
+        job.updated_at = now
+
+        latest_layer = await session.scalar(
+            select(ExtractionLayer)
+            .where(ExtractionLayer.paper_id == job.paper_id)
+            .order_by(ExtractionLayer.created_at.desc())
+            .limit(1)
+        )
+        if latest_layer is not None:
+            latest_layer.status = layer_status
+            processed = latest_layer.processed_data if isinstance(latest_layer.processed_data, dict) else {}
+            processed["error"] = error[:2000]
+            processed["job_attempt"] = attempt_count
+            processed["job_max_attempts"] = max_attempts
+            processed["next_retry_at"] = (
+                job.next_retry_at.isoformat() if job.next_retry_at is not None else None
+            )
+            latest_layer.processed_data = processed
+
+        await session.commit()
+
+
+async def _sweep_stale_evaluation_jobs() -> int:
+    now = _utcnow()
+    async with async_session_factory() as session:
+        stale_jobs = (
+            await session.scalars(
+                select(EvaluationJob).where(
+                    EvaluationJob.status == "processing",
+                    EvaluationJob.lease_expires_at.is_not(None),
+                    EvaluationJob.lease_expires_at < now,
+                )
+            )
+        ).all()
+        if not stale_jobs:
+            return 0
+
+        reclaimed = 0
+        for job in stale_jobs:
+            job.status = "retry"
+            job.next_retry_at = now
+            job.lease_expires_at = None
+            job.worker_id = None
+            if not job.last_error:
+                job.last_error = "stale lease reclaimed by sweeper"
+            reclaimed += 1
+        await session.commit()
+        return reclaimed
+
+
 async def _evaluate_and_score(paper_id: str) -> None:
-    """Background evaluation job for a paper already extracted into DB."""
+    """Run one evaluation pipeline for a paper ID."""
     from backend.db.models import ScoringResultDB
     from backend.services.scoring.engine import compute_score
     from backend.services.evaluation import ScientificEvaluator
 
     try:
         paper_uuid = uuid.UUID(paper_id)
-    except Exception:
+    except (TypeError, ValueError):
         logger.error("Background evaluation got invalid paper_id=%r", paper_id)
         return
 
@@ -243,7 +414,7 @@ async def _evaluate_and_score(paper_id: str) -> None:
                 timeout_seconds = max(15, int(settings.evaluation_pipeline_timeout_seconds))
                 timed_out = False
                 try:
-                    async def _run_pipeline() -> tuple[dict[str, Any], dict[str, Any]]:
+                    async def _run_pipeline() -> tuple[JsonDict, JsonDict]:
                         enriched_payload = await build_external_enrichment(
                             doi=paper.doi or "",
                             document_profile=paper_profile,
@@ -310,7 +481,7 @@ async def _evaluate_and_score(paper_id: str) -> None:
                             "pipeline_timed_out": timed_out,
                         }
                         await session.commit()
-                    return
+                    raise RuntimeError("llm_providers_unavailable")
 
                 raw_scores: dict[int, float] = {}
                 origin_snippets: dict[int, str] = {}
@@ -318,13 +489,13 @@ async def _evaluate_and_score(paper_id: str) -> None:
                     for dim_id, data in eval_results["scores"].items():
                         try:
                             dim_index = int(str(dim_id).strip())
-                        except Exception:
+                        except (TypeError, ValueError):
                             continue
                         if dim_index < 1 or dim_index > 9:
                             continue
                         try:
                             score = float(data.get("score", 3.0))
-                        except Exception:
+                        except (AttributeError, TypeError, ValueError):
                             score = 3.0
                         score = max(1.0, min(5.0, score))
                         raw_scores[dim_index] = score
@@ -361,7 +532,7 @@ async def _evaluate_and_score(paper_id: str) -> None:
                     dim7_score=raw_scores.get(7),
                     dim8_score=raw_scores.get(8),
                     dim9_score=raw_scores.get(9),
-                    scored_by="llm-timeout-fallback-v1" if timed_out else "llm-eval-v1",
+                    scored_by="llm-eval-v2",
                 )
                 session.add(scoring_db)
                 low_confidence = _assess_low_confidence(eval_results, jsonable_enriched_data, raw_scores)
@@ -407,13 +578,137 @@ async def _evaluate_and_score(paper_id: str) -> None:
                     layer.status = "error"
                     layer.processed_data = {"error": str(exc)}
                     await session.commit()
+                raise
+
+
+async def recover_pending_evaluations(max_jobs: int = 50) -> int:
+    """Recover queued/processing extraction rows into durable evaluation jobs."""
+    queued_statuses = {"queued", "processing"}
+    async with async_session_factory() as session:
+        now = _utcnow()
+        orphaned_processing = (
+            await session.scalars(
+                select(EvaluationJob).where(
+                    EvaluationJob.status == "processing",
+                    EvaluationJob.lease_expires_at.is_(None),
+                )
+            )
+        ).all()
+        for job in orphaned_processing:
+            job.status = "retry"
+            job.next_retry_at = now
+            job.worker_id = None
+            job.last_error = job.last_error or "orphaned processing job recovered on startup"
+
+        candidate_ids = (
+            await session.scalars(
+                select(ExtractionLayer.paper_id)
+                .where(ExtractionLayer.status.in_(queued_statuses))
+                .order_by(ExtractionLayer.created_at.desc())
+            )
+        ).all()
+
+        unique_ids: list[uuid.UUID] = []
+        seen: set[uuid.UUID] = set()
+        for candidate_id in candidate_ids:
+            if candidate_id in seen:
+                continue
+            seen.add(candidate_id)
+            unique_ids.append(candidate_id)
+            if len(unique_ids) >= max_jobs:
+                break
+
+        recovered = 0
+        for candidate_id in unique_ids:
+            has_score = await session.scalar(
+                select(ScoringResultDB.id)
+                .where(ScoringResultDB.paper_id == candidate_id)
+                .limit(1)
+            )
+            if has_score is not None:
+                continue
+            if await _enqueue_evaluation_job_db(session, candidate_id):
+                recovered += 1
+        await session.commit()
+
+    return recovered
+
+
+async def _evaluation_worker_loop(worker_name: str) -> None:
+    poll_interval = max(0.25, float(settings.evaluation_job_poll_interval_seconds))
+    while not _WORKER_STOP_EVENT.is_set():
+        try:
+            job = await _claim_next_evaluation_job()
+            if job is None:
+                await asyncio.sleep(poll_interval)
+                continue
+
+            try:
+                await _evaluate_and_score(str(job.paper_id))
+            except Exception as exc:
+                await _mark_job_failed(job.id, str(exc))
+                logger.warning(
+                    "Evaluation job failed worker=%s job_id=%s paper_id=%s attempt=%s error=%s",
+                    worker_name,
+                    job.id,
+                    job.paper_id,
+                    job.attempt_count,
+                    exc,
+                )
+            else:
+                await _mark_job_completed(job.id)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Evaluation worker loop crash in %s; continuing", worker_name)
+            await asyncio.sleep(poll_interval)
+
+
+async def _stale_job_sweeper_loop() -> None:
+    interval = max(5, int(settings.evaluation_stale_sweep_interval_seconds))
+    while not _WORKER_STOP_EVENT.is_set():
+        try:
+            reclaimed = await _sweep_stale_evaluation_jobs()
+            if reclaimed:
+                logger.warning("Reclaimed %d stale evaluation job(s)", reclaimed)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Stale evaluation sweeper crashed; continuing")
+        await asyncio.sleep(interval)
+
+
+async def start_evaluation_workers() -> None:
+    """Start durable queue workers and stale sweeper once per process."""
+    if _WORKER_TASKS:
+        return
+    _WORKER_STOP_EVENT.clear()
+    worker_count = max(1, int(settings.max_parallel_evaluations))
+    for index in range(worker_count):
+        name = f"eval-worker-{index + 1}"
+        _WORKER_TASKS.append(asyncio.create_task(_evaluation_worker_loop(name), name=name))
+    _WORKER_TASKS.append(asyncio.create_task(_stale_job_sweeper_loop(), name="eval-stale-sweeper"))
+
+
+async def stop_evaluation_workers() -> None:
+    """Stop worker tasks cleanly on shutdown."""
+    if not _WORKER_TASKS:
+        return
+    _WORKER_STOP_EVENT.set()
+    for task in _WORKER_TASKS:
+        task.cancel()
+    results = await asyncio.gather(*_WORKER_TASKS, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
+            logger.error("Worker shutdown saw exception: %s", result)
+    _WORKER_TASKS.clear()
 
 
 @router.post("/upload")
 async def upload_pdf(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session)
-) -> Dict[str, Any]:
+) -> JsonDict:
     """Upload PDF and trigger extraction + evaluation pipeline.
 
     Extraction order:
@@ -427,14 +722,12 @@ async def upload_pdf(
             detail="Only PDF files are allowed. Upload a valid .pdf document.",
         )
     file_hash = hashlib.sha256(contents).hexdigest()[:12]
-    mock_doi = f"10.matdao/{file_hash}"
+    synthetic_doi = f"10.matdao/{file_hash}"
 
-    # Save locally for reference
     save_path = UPLOAD_DIR / f"{file_hash}.pdf"
     with save_path.open("wb") as f:
         f.write(contents)
 
-    # Deduplication check
     existing_paper = await session.scalar(
         select(ResearchPaper).where(ResearchPaper.matdao_id == file_hash)
     )
@@ -466,13 +759,11 @@ async def upload_pdf(
                     "deduplicated": True,
                     "message": "File already exists. Reusing latest scoring result.",
                 }
-        # Paper exists with stale/low-quality score or no score. Continue pipeline to regenerate.
         paper = existing_paper
     else:
-        # Create record
         paper = ResearchPaper(
             matdao_id=file_hash,
-            doi=mock_doi,
+            doi=synthetic_doi,
             title=file.filename,
         )
         session.add(paper)
@@ -480,8 +771,6 @@ async def upload_pdf(
         await session.refresh(paper)
 
     if existing_paper and existing_score is not None:
-        # Ensure the existing score isn't returned again by `_evaluate_and_score` early-exit.
-        # Delete stale/latest scoring rows for this paper and regenerate fresh output.
         stale_rows = (
             await session.scalars(
                 select(ScoringResultDB).where(ScoringResultDB.paper_id == paper.id)
@@ -492,16 +781,13 @@ async def upload_pdf(
         await session.commit()
 
     if existing_paper and existing_score is not None and should_rerun:
-        existing_processing_layer = await session.scalar(
-            select(ExtractionLayer)
-            .where(
-                ExtractionLayer.paper_id == paper.id,
-                ExtractionLayer.status.in_(["queued", "processing"]),
-            )
-            .order_by(ExtractionLayer.created_at.desc())
+        existing_job = await session.scalar(
+            select(EvaluationJob)
+            .where(EvaluationJob.paper_id == paper.id, EvaluationJob.status.in_(["queued", "retry", "processing"]))
+            .order_by(EvaluationJob.created_at.desc())
             .limit(1)
         )
-        if existing_processing_layer is not None:
+        if existing_job is not None:
             return {
                 "status": "queued",
                 "doi": paper.doi,
@@ -520,7 +806,6 @@ async def upload_pdf(
     session.add(layer)
     await session.commit()
 
-    # Extraction Logic: PDF text -> GLM-OCR (API fallback)
     final_text = ""
     extraction_source = "pdf-text"
     extraction_start = time.perf_counter()
@@ -589,8 +874,7 @@ async def upload_pdf(
             detail="Extraction failed: Could not extract meaningful text from this PDF. It might be corrupted or entirely unreadable."
         )
 
-    # 3. DOI Extraction and Metadata Enrichment
-    detected_doi = _extract_doi(final_text) or mock_doi
+    detected_doi = _extract_doi(final_text) or synthetic_doi
     parsed_profile = build_document_profile(final_text, fallback_title=file.filename)
     paper.doi = detected_doi
     paper.title = parsed_profile.get("title") or file.filename
@@ -608,9 +892,8 @@ async def upload_pdf(
     }
     session.add(paper)
     session.add(layer)
+    await _enqueue_evaluation_job_db(session, paper.id)
     await session.commit()
-
-    asyncio.create_task(_evaluate_and_score(str(paper.id)))
 
     return {
         "status": "queued",

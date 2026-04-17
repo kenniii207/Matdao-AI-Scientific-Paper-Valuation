@@ -36,7 +36,7 @@ DIMENSION_NAMES = {
     9: "Governance & Transparency",
 }
 
-# MVP: equal weights (1/9 each)
+# Default equal weights (1/9 each)
 DEFAULT_WEIGHTS = {i: 1.0 / 9.0 for i in range(1, 10)}
 
 

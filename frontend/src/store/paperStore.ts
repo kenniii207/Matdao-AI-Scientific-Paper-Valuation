@@ -1,10 +1,5 @@
 import { create } from 'zustand';
-
-interface Paper {
-  doi: string;
-  title?: string;
-  status: 'pending' | 'processing' | 'complete' | 'error';
-}
+import type { Paper } from '@/lib/types/paper';
 
 interface PaperStore {
   papers: Paper[];
