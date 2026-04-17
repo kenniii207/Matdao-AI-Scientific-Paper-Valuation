@@ -12,8 +12,8 @@ import { TypeAnimation } from 'react-type-animation';
 import { GradientCard } from '@/components/ui/gradient-card';
 import { LiquidButton } from '@/components/ui/liquid-glass-button';
 
-const ShaderBackground = dynamic(
-  () => import('@/components/ui/shader-background'),
+const WebGLShader = dynamic(
+  () => import('@/components/ui/web-gl-shader').then((m) => m.WebGLShader),
   { ssr: false }
 );
 
@@ -107,19 +107,19 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col overflow-x-hidden bg-black/10">
+    <div className="min-h-screen flex flex-col overflow-x-hidden bg-black relative">
+      {!reducedMotion ? <WebGLShader /> : null}
+
       <div className="relative z-20">
         <AppHeader />
       </div>
 
-      {!reducedMotion ? <ShaderBackground /> : null}
-
       <main className="flex-grow z-10 relative px-5 sm:px-6 py-12 md:py-16">
         <div className="absolute inset-0 pointer-events-none z-[-1]">
-          {/* Subtle vignette or blur can be kept, but fully transparent center to let shader show */ }
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/30" />
-          <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[900px] bg-cyan-300/10 rounded-full blur-[150px]" />
-          <div className="absolute bottom-[-18%] right-[4%] w-[560px] h-[560px] bg-indigo-500/10 rounded-full blur-[160px]" />
+          {/* Transparent gradients to allow shader visibility with subtle darkening at edges */}
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60" />
+          <div className="absolute top-[-10%] left-1/2 -translate-x-1/2 w-[900px] h-[900px] bg-cyan-300/5 rounded-full blur-[150px]" />
+          <div className="absolute bottom-[-18%] right-[4%] w-[560px] h-[560px] bg-indigo-500/5 rounded-full blur-[160px]" />
         </div>
 
         <div ref={heroRef} className="relative z-10 w-full max-w-6xl mx-auto">
