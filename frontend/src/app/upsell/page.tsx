@@ -1,22 +1,32 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import AppFooter from '@/components/AppFooter';
 import AppHeader from '@/components/AppHeader';
- 
+import { WebGLShader } from '@/components/ui/web-gl-shader';
 const EXTERNAL_EVAL_URL =
   'https://v0-matdao-platform.vercel.app?_vercel_share=5y6zhqZWEIIRGrUG1ahDUqf8M84AJQ5F';
 
 export default function UpsellPage() {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   const tierBase =
     'workflow-panel-muted rounded-2xl p-7 text-left interactive-lift transition-colors';
 
   return (
-    <div className="min-h-screen flex flex-col bg-black">
+    <div className="min-h-screen flex flex-col bg-transparent relative">
+      {isMounted && <WebGLShader />}
       <AppHeader />
 
       <main className="flex-grow flex items-center justify-center px-6 py-16 relative" data-route-item>
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none z-0">
           <div className="absolute inset-0 bg-black/[0.78]" />
-          <div className="absolute top-[-10%] left-[8%] w-[420px] h-[420px] bg-cyan-400/[0.06] rounded-full blur-[150px]" />
-          <div className="absolute bottom-[-18%] right-[8%] w-[420px] h-[420px] bg-indigo-500/[0.06] rounded-full blur-[150px]" />
+          <div className="absolute top-[-10%] left-[8%] w-[420px] h-[420px] bg-cyan-400/[0.04] rounded-full blur-[150px]" />
+          <div className="absolute bottom-[-18%] right-[8%] w-[420px] h-[420px] bg-indigo-500/[0.04] rounded-full blur-[150px]" />
         </div>
         <div className="w-full max-w-6xl text-center relative z-10" data-route-item>
           <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-white/88 mb-12" data-route-item>

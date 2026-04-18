@@ -12,6 +12,7 @@ import { apiUrl, fetchWithTimeout } from '@/lib/api';
 import type { ScoringPendingResponse, ScoringResponse } from '@/lib/types/scoring';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { AnimatedRouteLink } from '@/components/AnimatedRouteLink';
+import { WebGLShader } from '@/components/ui/web-gl-shader';
 
 const RESULTS_TIMEOUT_MS = 30_000;
 const MAX_TOTAL_POLL_MS = 8 * 60 * 1000;
@@ -40,6 +41,11 @@ export default function PaperResultsPage() {
   const [loadingStatus, setLoadingStatus] = useState('Connecting to backend...');
   const progressFillRef = useRef<HTMLDivElement | null>(null);
   const loadingStageRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,14 +181,15 @@ export default function PaperResultsPage() {
   }, [data]);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col bg-transparent relative">
+      {isMounted && <WebGLShader />}
       <AppHeader />
 
       <main className="flex-grow lg:ml-0 p-4 sm:p-6 md:p-8 pt-5 md:pt-6 max-w-7xl mx-auto w-full relative">
         <div className="absolute inset-0 pointer-events-none -z-10">
           <div className="absolute inset-0 bg-black/[0.78]" />
-          <div className="absolute top-[-10%] left-[4%] w-[360px] h-[360px] bg-cyan-400/[0.06] rounded-full blur-[130px]" />
-          <div className="absolute bottom-[-18%] right-[2%] w-[360px] h-[360px] bg-purple-500/[0.06] rounded-full blur-[130px]" />
+          <div className="absolute top-[-10%] left-[4%] w-[360px] h-[360px] bg-cyan-400/[0.04] rounded-full blur-[130px]" />
+          <div className="absolute bottom-[-18%] right-[2%] w-[360px] h-[360px] bg-purple-500/[0.04] rounded-full blur-[130px]" />
         </div>
         <AnimatePresence mode="wait" initial={false}>
           {loading ? (

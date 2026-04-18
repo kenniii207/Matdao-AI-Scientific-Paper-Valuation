@@ -9,6 +9,8 @@ import AppHeader from '@/components/AppHeader';
 import AppFooter from '@/components/AppFooter';
 import { apiUrl, fetchWithTimeout } from '@/lib/api';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
+import { WebGLShader } from '@/components/ui/web-gl-shader';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 type UploadState = 'idle' | 'uploading' | 'error';
 type UploadPhase = 'idle' | 'uploading' | 'processing' | 'finalizing' | 'error';
@@ -107,6 +109,11 @@ export default function SubmitClient() {
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [uploadPhase, setUploadPhase] = useState<UploadPhase>('idle');
   const [message, setMessage] = useState<string>('');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const headline = useMemo(() => {
     if (intent === 'strength') return 'Validate research strength';
@@ -229,14 +236,15 @@ export default function SubmitClient() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-black">
+    <div className="min-h-screen flex flex-col bg-transparent relative">
+      {isMounted && <WebGLShader />}
       <AppHeader />
 
       <main className="flex-grow flex items-center justify-center px-5 sm:px-6 py-10 md:py-16 relative">
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none z-0">
           <div className="absolute inset-0 bg-black/[0.78]" />
-          <div className="absolute top-[-14%] left-[10%] w-[420px] h-[420px] bg-cyan-400/[0.06] rounded-full blur-[135px]" />
-          <div className="absolute bottom-[-20%] right-[8%] w-[420px] h-[420px] bg-indigo-500/[0.06] rounded-full blur-[145px]" />
+          <div className="absolute top-[-14%] left-[10%] w-[420px] h-[420px] bg-cyan-400/[0.04] rounded-full blur-[135px]" />
+          <div className="absolute bottom-[-20%] right-[8%] w-[420px] h-[420px] bg-indigo-500/[0.04] rounded-full blur-[145px]" />
         </div>
         <div ref={shellRef} className="w-full max-w-4xl text-center relative z-10">
           <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-tight text-white/85 mb-2" data-route-item data-submit-item>
