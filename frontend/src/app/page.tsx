@@ -13,6 +13,7 @@ import { GradientCard } from '@/components/ui/gradient-card';
 import { LiquidButton } from '@/components/ui/liquid-glass-button';
 
 import { WebGLShader } from '@/components/ui/web-gl-shader';
+import { LoadingScreen } from '@/components/ui/loading-screen';
 
 type IntentCard = {
   intent: 'evaluate' | 'strength' | 'industry';
@@ -32,6 +33,7 @@ export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const heroRef = useRef<HTMLDivElement | null>(null);
   const [activeIntent, setActiveIntent] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   const handleIntentHover = useCallback((intent: string | null) => {
     setActiveIntent(intent);
@@ -84,18 +86,21 @@ export default function Home() {
   );
 
   useEffect(() => {
-    if (reducedMotion || !heroRef.current) return;
+    if (reducedMotion || !heroRef.current || isLoading) return;
     const ctx = gsap.context(() => {
-      const timeline = gsap.timeline({ defaults: { ease: 'power2.out' } });
+      const timeline = gsap.timeline({ 
+        defaults: { ease: 'power3.out' },
+        delay: 0.15 
+      });
       timeline
-        .from('.landing-intro', { y: 18, autoAlpha: 0, duration: 0.34 })
-        .from('.landing-title', { y: 16, autoAlpha: 0, duration: 0.38 }, '-=0.18')
-        .from('.landing-subcopy', { y: 12, autoAlpha: 0, duration: 0.32 }, '-=0.2')
-        .from('.landing-card', { y: 20, autoAlpha: 0, duration: 0.42, stagger: 0.08 }, '-=0.06')
-        .from('.landing-cta', { y: 12, autoAlpha: 0, duration: 0.3 }, '-=0.22');
+        .from('.landing-intro', { y: 24, autoAlpha: 0, duration: 0.45 })
+        .from('.landing-title', { y: 20, autoAlpha: 0, duration: 0.5 }, '-=0.25')
+        .from('.landing-subcopy', { y: 16, autoAlpha: 0, duration: 0.45 }, '-=0.3')
+        .from('.landing-card', { y: 28, autoAlpha: 0, duration: 0.55, stagger: 0.12 }, '-=0.2')
+        .from('.landing-cta', { y: 16, autoAlpha: 0, duration: 0.4 }, '-=0.35');
     }, heroRef);
     return () => ctx.revert();
-  }, [reducedMotion]);
+  }, [reducedMotion, isLoading]);
 
   const navigateWithPulse = (href: string, eventTarget?: HTMLElement | null) => {
     const rect = eventTarget?.getBoundingClientRect();
@@ -114,8 +119,12 @@ export default function Home() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col overflow-x-hidden bg-transparent relative">
+      {isMounted && (
+        <LoadingScreen onLoadingComplete={() => setIsLoading(false)} />
+      )}
+
       {/* Layer 2: Shader (Fixed behind everything) */}
-      {isMounted ? <WebGLShader /> : null}
+      {isMounted && !isLoading ? <WebGLShader /> : null}
 
       {/* Layer 3: Content */}
       <div className="relative z-20">
