@@ -3,6 +3,7 @@
 # Services:
 # - Postgres (+pgvector image)
 # - Backend API (Local GPU / GLM-OCR fallback)
+# - Optional LightOnOCR llama-server (`--profile lighton`)
 
 services:
   postgres:
@@ -34,9 +35,48 @@ services:
       - MANUS_API_KEY=${MANUS_API_KEY:-}
       - MANUS_BASE_URL=${MANUS_BASE_URL:-}
       - MANUS_MODEL=${MANUS_MODEL:-}
+      - LIGHTONOCR_ENABLED=${LIGHTONOCR_ENABLED:-false}
+      - LIGHTONOCR_BASE_URL=${LIGHTONOCR_BASE_URL:-http://lighton-ocr:8080}
+      - LIGHTONOCR_TIMEOUT_SECONDS=${LIGHTONOCR_TIMEOUT_SECONDS:-45}
+      - LIGHTONOCR_HEALTH_TIMEOUT_SECONDS=${LIGHTONOCR_HEALTH_TIMEOUT_SECONDS:-3}
+      - LIGHTONOCR_READINESS_CACHE_SECONDS=${LIGHTONOCR_READINESS_CACHE_SECONDS:-15}
+      - LIGHTONOCR_INCLUDE_TEXT_PROMPT=${LIGHTONOCR_INCLUDE_TEXT_PROMPT:-false}
+      - LIGHTONOCR_MODEL_PATH=${LIGHTONOCR_MODEL_PATH:-/models/LightOnOCR-2-1B.i1-Q5_K_M.gguf}
+      - LIGHTONOCR_MMPROJ_PATH=${LIGHTONOCR_MMPROJ_PATH:-/models/LightOnOCR-2-1B.mmproj-Q8_0.gguf}
+      - LIGHTONOCR_REQUIRE_LOCAL_PATHS=${LIGHTONOCR_REQUIRE_LOCAL_PATHS:-false}
+      - LIGHTONOCR_CANARY_PERCENT=${LIGHTONOCR_CANARY_PERCENT:-0}
+      - OCR_FALLBACK_ORDER=${OCR_FALLBACK_ORDER:-pdf_text,glm_ocr,lighton_ocr}
+      - OCR_MAX_UPLOAD_BYTES=${OCR_MAX_UPLOAD_BYTES:-25000000}
+      - OCR_MAX_PAGES_SYNC_TEXT=${OCR_MAX_PAGES_SYNC_TEXT:-30}
+      - OCR_RENDER_MAX_PIXELS=${OCR_RENDER_MAX_PIXELS:-4000000}
+      - OCR_FALLBACK_TIMEOUT_SECONDS=${OCR_FALLBACK_TIMEOUT_SECONDS:-75}
+      - GLM_OCR_TIMEOUT_SECONDS=${GLM_OCR_TIMEOUT_SECONDS:-30}
+      - OPENROUTER_MAX_MODELS_PER_EVAL=${OPENROUTER_MAX_MODELS_PER_EVAL:-3}
     depends_on:
       postgres:
         condition: service_healthy
+    restart: unless-stopped
+
+  lighton-ocr:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    container_name: matdao-lighton-ocr
+    profiles: ["lighton"]
+    ports:
+      - "8080:8080"
+    environment:
+      - LIGHTONOCR_MODEL_PATH=${LIGHTONOCR_MODEL_PATH:-/models/LightOnOCR-2-1B.i1-Q5_K_M.gguf}
+      - LIGHTONOCR_MMPROJ_PATH=${LIGHTONOCR_MMPROJ_PATH:-/models/LightOnOCR-2-1B.mmproj-Q8_0.gguf}
+    command: >
+      -m ${LIGHTONOCR_MODEL_PATH:-/models/LightOnOCR-2-1B.i1-Q5_K_M.gguf}
+      --mmproj ${LIGHTONOCR_MMPROJ_PATH:-/models/LightOnOCR-2-1B.mmproj-Q8_0.gguf}
+      --host 0.0.0.0
+      --port 8080
+      -c 8192
+      --temp 0.2
+      --top-k 0
+      --top-p 0.9
+    volumes:
+      - /Volumes/Models/huggingface/models:/models:ro
     restart: unless-stopped
 
 volumes:

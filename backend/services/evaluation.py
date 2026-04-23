@@ -199,7 +199,11 @@ class ScientificEvaluator:
     def __init__(self):
         self.api_key = settings.zai_api_key
         self.api_url = "https://open.bigmodel.cn/api/paas/v4/chat/completions"
-        self.provider_timeout = max(30, int(settings.llm_provider_timeout_seconds))
+        self.glm_model = (settings.glm_model or "glm-4.7-flash").strip()
+        pipeline_timeout = max(15, int(settings.evaluation_pipeline_timeout_seconds))
+        configured_provider_timeout = max(15, int(settings.llm_provider_timeout_seconds))
+        self.provider_timeout = min(configured_provider_timeout, max(15, pipeline_timeout // 3))
+        self._current_complexity_band = "medium"
 
     @staticmethod
     def _parse_csv(value: str) -> list[str]:
@@ -274,6 +278,51 @@ class ScientificEvaluator:
             key=lambda provider: (rank.get(provider, 999), providers.index(provider)),
         )
         return ordered, band
+
+    def _openrouter_models_for_band(self, band: str) -> list[str]:
+        models = self._parse_csv(settings.openrouter_models)
+        if not models:
+            return []
+
+        # Free-model pools tuned by complexity band while preserving configured model list.
+        if band == "high":
+            preferred = [
+                "openai/gpt-oss-120b:free",
+                "nousresearch/hermes-3-llama-3.1-405b:free",
+                "google/gemma-4-31b-it:free",
+                "z-ai/glm-4.5-air:free",
+                "minimax/minimax-m2.5:free",
+                "nvidia/nemotron-3-nano-30b-a3b:free",
+            ]
+        elif band == "low":
+            preferred = [
+                "z-ai/glm-4.5-air:free",
+                "minimax/minimax-m2.5:free",
+                "google/gemma-4-31b-it:free",
+                "nvidia/nemotron-3-nano-30b-a3b:free",
+                "openai/gpt-oss-120b:free",
+                "nousresearch/hermes-3-llama-3.1-405b:free",
+            ]
+        else:
+            preferred = [
+                "google/gemma-4-31b-it:free",
+                "z-ai/glm-4.5-air:free",
+                "minimax/minimax-m2.5:free",
+                "openai/gpt-oss-120b:free",
+                "nousresearch/hermes-3-llama-3.1-405b:free",
+                "nvidia/nemotron-3-nano-30b-a3b:free",
+            ]
+
+        rank = {model: index for index, model in enumerate(preferred)}
+        return sorted(
+            models,
+            key=lambda model: (rank.get(model, 999), models.index(model)),
+        )
+
+    def _openrouter_attempt_models_for_band(self, band: str) -> list[str]:
+        ordered = self._openrouter_models_for_band(band)
+        max_models = max(1, int(settings.openrouter_max_models_per_eval))
+        return ordered[:max_models]
 
     async def _evaluate_with_openai_compatible(
         self,
@@ -402,7 +451,7 @@ class ScientificEvaluator:
             provider_name="glm",
             api_key=self.api_key,
             base_url=self.api_url,
-            model="glm-4",
+            model=self.glm_model,
             prompt=prompt,
         )
 
@@ -412,7 +461,7 @@ class ScientificEvaluator:
             return {"error": "openrouter_not_configured", "provider": "openrouter"}
 
         url = _normalize_chat_completions_url(settings.openrouter_api_url)
-        models = self._parse_csv(settings.openrouter_models)
+        models = self._openrouter_attempt_models_for_band(self._current_complexity_band)
         if not models:
             return {"error": "openrouter_models_missing", "provider": "openrouter"}
 
@@ -678,7 +727,7 @@ class ScientificEvaluator:
             enriched_data: Metadata from OpenAlex, Semantic Scholar, etc.
         """
         metadata = coerce_jsonable(enriched_data or {})
-        metadata_str = json.dumps(metadata, indent=2)
+        metadata_str = json.dumps(metadata, separators=(",", ":"), ensure_ascii=False)
         document_profile = metadata.get("document_profile", {}) if isinstance(metadata, dict) else {}
         abstract = str(document_profile.get("abstract") or "").strip()
         keywords = document_profile.get("keywords") or []
@@ -744,6 +793,7 @@ class ScientificEvaluator:
         selected_provider = "none"
         base_sequence = self._provider_sequence()
         sequence, complexity_band = self._apply_adaptive_routing(base_sequence, llm_text, metadata)
+        self._current_complexity_band = complexity_band
         provider_runners = {
             "gemini": self._evaluate_with_gemini,
             "glm": self._evaluate_with_glm,
@@ -796,6 +846,8 @@ class ScientificEvaluator:
             "selected_attempt": selected_attempt,
             "fallback_used": selected_attempt > 1,
         }
+        quality_signals["openrouter_model_order"] = self._openrouter_models_for_band(complexity_band)
+        quality_signals["openrouter_attempted_models"] = self._openrouter_attempt_models_for_band(complexity_band)
         repaired_result["_quality_signals"] = quality_signals
 
         llm_ms = round((time.perf_counter() - llm_start) * 1000, 2)

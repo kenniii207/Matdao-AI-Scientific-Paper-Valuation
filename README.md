@@ -74,12 +74,64 @@ Recommended minimum for staging:
 - `OPENROUTER_API_KEY` set
 - `OPENROUTER_MODELS` with multiple models
 
+## LightOnOCR Rollout (Phased)
+
+The OCR fallback chain is configurable:
+
+- `OCR_FALLBACK_ORDER=pdf_text,glm_ocr,lighton_ocr`
+- `LIGHTONOCR_ENABLED=false` by default (canary-safe)
+
+### Phase 1 — Infrastructure
+
+Use optional local llama.cpp server in compose:
+
+```bash
+docker compose --profile lighton up -d lighton-ocr postgres backend
+```
+
+Required model files:
+
+- `LightOnOCR-2-1B.i1-Q5_K_M.gguf`
+- `LightOnOCR-2-1B.mmproj-Q8_0.gguf`
+
+### Phase 2 — Preflight Mode
+
+For remote llama-server (recommended): keep local path checks off.
+
+- `LIGHTONOCR_REQUIRE_LOCAL_PATHS=false`
+
+For same-host deployment with direct file validation:
+
+- `LIGHTONOCR_REQUIRE_LOCAL_PATHS=true`
+- Set both `LIGHTONOCR_MODEL_PATH` and `LIGHTONOCR_MMPROJ_PATH`
+
+### Phase 3 — Canary
+
+Enable service and gradually route fallback traffic:
+
+- `LIGHTONOCR_ENABLED=true`
+- `LIGHTONOCR_CANARY_PERCENT=5` (then 10, 25, 50, 100)
+
+### Phase 4 — Production Readiness Checks
+
+Check runtime readiness before increasing canary:
+
+```bash
+curl -s http://localhost:8000/upload/ocr/readiness
+```
+
+Healthy target:
+
+- `"lighton_ready": true`
+- `"lighton_preflight_error": null`
+- stable extraction latency and no rising 422 rate
+
 ## Tech Stack
 
 - **Backend**: FastAPI, Pydantic v2, SQLAlchemy 2.0 (async)
 - **Frontend**: Next.js 14 (App Router), TypeScript, Tailwind CSS, Zustand
 - **Database**: PostgreSQL 16 + pgvector
-- **OCR**: Falcon-OCR (300M local inference) + GLM-OCR (API fallback)
+- **OCR**: Falcon-OCR (300M local inference) + GLM-OCR + LightOnOCR (canary fallback)
 - **Evaluation**: Multi-provider LLM fallback (Gemini, GLM, OpenRouter + optional Qwen/Manus/Kimi/Minimax/Liquid)
 - **APIs**: OpenAlex, Semantic Scholar, NIH RePORTER, OSF, ClinicalTrials.gov, Falcon-OCR, GLM-OCR.
 

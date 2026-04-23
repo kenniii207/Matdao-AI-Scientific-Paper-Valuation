@@ -123,6 +123,112 @@ def test_normalize_chat_completions_url_accepts_base_or_endpoint():
     assert evaluation_service._normalize_chat_completions_url("  ") == ""
 
 
+def test_openrouter_models_for_band_low_prioritizes_fast_free_models(monkeypatch):
+    monkeypatch.setattr(
+        evaluation_service.settings,
+        "openrouter_models",
+        (
+            "openai/gpt-oss-120b:free,"
+            "google/gemma-4-31b-it:free,"
+            "minimax/minimax-m2.5:free,"
+            "z-ai/glm-4.5-air:free,"
+            "nousresearch/hermes-3-llama-3.1-405b:free"
+        ),
+    )
+    evaluator = evaluation_service.ScientificEvaluator()
+    ordered = evaluator._openrouter_models_for_band("low")
+    assert ordered[:3] == [
+        "z-ai/glm-4.5-air:free",
+        "minimax/minimax-m2.5:free",
+        "google/gemma-4-31b-it:free",
+    ]
+
+
+def test_openrouter_models_for_band_high_prioritizes_reasoning_models(monkeypatch):
+    monkeypatch.setattr(
+        evaluation_service.settings,
+        "openrouter_models",
+        (
+            "z-ai/glm-4.5-air:free,"
+            "google/gemma-4-31b-it:free,"
+            "openai/gpt-oss-120b:free,"
+            "nousresearch/hermes-3-llama-3.1-405b:free,"
+            "minimax/minimax-m2.5:free"
+        ),
+    )
+    evaluator = evaluation_service.ScientificEvaluator()
+    ordered = evaluator._openrouter_models_for_band("high")
+    assert ordered[:3] == [
+        "openai/gpt-oss-120b:free",
+        "nousresearch/hermes-3-llama-3.1-405b:free",
+        "google/gemma-4-31b-it:free",
+    ]
+
+
+def test_scientific_evaluator_derives_provider_timeout_from_pipeline(monkeypatch):
+    monkeypatch.setattr(evaluation_service.settings, "llm_provider_timeout_seconds", 120)
+    monkeypatch.setattr(evaluation_service.settings, "evaluation_pipeline_timeout_seconds", 120)
+    evaluator = evaluation_service.ScientificEvaluator()
+    assert evaluator.provider_timeout == 40
+
+
+def test_openrouter_attempt_models_respects_cap(monkeypatch):
+    monkeypatch.setattr(
+        evaluation_service.settings,
+        "openrouter_models",
+        (
+            "z-ai/glm-4.5-air:free,"
+            "google/gemma-4-31b-it:free,"
+            "openai/gpt-oss-120b:free,"
+            "nousresearch/hermes-3-llama-3.1-405b:free"
+        ),
+    )
+    monkeypatch.setattr(evaluation_service.settings, "openrouter_max_models_per_eval", 2)
+    evaluator = evaluation_service.ScientificEvaluator()
+    attempt_models = evaluator._openrouter_attempt_models_for_band("high")
+    assert len(attempt_models) == 2
+
+
+@pytest.mark.asyncio
+async def test_evaluate_content_uses_compact_metadata_json(monkeypatch):
+    evaluator = evaluation_service.ScientificEvaluator()
+    captured_prompt = {"value": ""}
+
+    async def fake_gemini(prompt: str):
+        captured_prompt["value"] = prompt
+        return {
+            "scores": {
+                str(idx): {"score": 3.5, "rationale": f"R{idx}", "origin_snippet": f"S{idx}"}
+                for idx in range(1, 10)
+            },
+            "insight": "Specific insight",
+        }
+
+    monkeypatch.setattr(evaluator, "_provider_sequence", lambda: ["gemini"])
+    monkeypatch.setattr(evaluator, "_evaluate_with_gemini", fake_gemini)
+
+    await evaluator.evaluate_content(
+        "paper text",
+        {"source_errors": {"openalex": "timeout"}, "document_profile": {"title": "T"}},
+    )
+    assert '"source_errors":{"openalex":"timeout"}' in captured_prompt["value"]
+
+
+@pytest.mark.asyncio
+async def test_evaluate_with_glm_uses_configured_model(monkeypatch):
+    monkeypatch.setattr(evaluation_service.settings, "glm_model", "glm-4.7-flash")
+    evaluator = evaluation_service.ScientificEvaluator()
+    captured: dict[str, str] = {}
+
+    async def fake_openai_compatible(**kwargs):
+        captured["model"] = str(kwargs.get("model"))
+        return {"ok": True}
+
+    monkeypatch.setattr(evaluator, "_evaluate_with_openai_compatible", fake_openai_compatible)
+    await evaluator._evaluate_with_glm("paper text")
+    assert captured["model"] == "glm-4.7-flash"
+
+
 @pytest.mark.asyncio
 async def test_evaluate_content_falls_back_to_glm_when_gemini_fails(monkeypatch):
     monkeypatch.setattr(evaluation_service.settings, "gemini_api_key", "test-gemini")

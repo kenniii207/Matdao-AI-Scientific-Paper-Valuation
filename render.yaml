@@ -14,6 +14,16 @@ services:
         sync: false
       - key: GEMINI_API_KEY
         sync: false
+      - key: GLM_MODEL
+        value: "glm-4.7-flash"
+      - key: GLM_VISION_MODEL
+        value: "glm-4.6v-flash"
+      - key: GLM_OCR_MODEL
+        value: "glm-ocr"
+      - key: GLM_OCR_LAYOUT_ENDPOINT
+        value: "https://open.bigmodel.cn/api/paas/v4/layout_parsing"
+      - key: GLM_OCR_TIMEOUT_SECONDS
+        value: "30"
       - key: OPENALEX_API_KEY
         sync: false
       - key: SEMANTIC_SCHOLAR_API_KEY
@@ -31,7 +41,9 @@ services:
       - key: OPENROUTER_API_URL
         value: "https://openrouter.ai/api/v1/chat/completions"
       - key: OPENROUTER_MODELS
-        value: "nousresearch/hermes-3-llama-3.1-405b:free,openai/gpt-oss-120b:free,google/gemma-4-31b-it:free,nvidia/nemotron-3-nano-30b-a3b:free"
+        value: "z-ai/glm-4.5-air:free,minimax/minimax-m2.5:free,google/gemma-4-31b-it:free,openai/gpt-oss-120b:free,nousresearch/hermes-3-llama-3.1-405b:free,nvidia/nemotron-3-nano-30b-a3b:free"
+      - key: OPENROUTER_MAX_MODELS_PER_EVAL
+        value: "3"
       - key: OPENROUTER_REASONING_ENABLED
         value: "true"
       - key: OPENROUTER_SITE_URL
@@ -68,6 +80,36 @@ services:
         sync: false
       - key: MANUS_MODEL
         sync: false
+      - key: OCR_FALLBACK_ORDER
+        value: "pdf_text,glm_ocr,lighton_ocr"
+      - key: OCR_MAX_UPLOAD_BYTES
+        value: "25000000"
+      - key: OCR_MAX_PAGES_SYNC_TEXT
+        value: "30"
+      - key: OCR_RENDER_MAX_PIXELS
+        value: "4000000"
+      - key: OCR_FALLBACK_TIMEOUT_SECONDS
+        value: "75"
+      - key: LIGHTONOCR_ENABLED
+        value: "false"
+      - key: LIGHTONOCR_BASE_URL
+        sync: false
+      - key: LIGHTONOCR_TIMEOUT_SECONDS
+        value: "45"
+      - key: LIGHTONOCR_HEALTH_TIMEOUT_SECONDS
+        value: "3"
+      - key: LIGHTONOCR_READINESS_CACHE_SECONDS
+        value: "15"
+      - key: LIGHTONOCR_INCLUDE_TEXT_PROMPT
+        value: "false"
+      - key: LIGHTONOCR_MODEL_PATH
+        sync: false
+      - key: LIGHTONOCR_MMPROJ_PATH
+        sync: false
+      - key: LIGHTONOCR_REQUIRE_LOCAL_PATHS
+        value: "false"
+      - key: LIGHTONOCR_CANARY_PERCENT
+        value: "5"
       - key: ENABLE_EXTERNAL_API_CACHE
         value: "true"
       - key: ENABLE_CURATED_CACHE

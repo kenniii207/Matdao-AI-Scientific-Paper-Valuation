@@ -1,6 +1,7 @@
 """Centralized configuration loaded from environment variables."""
 
 import os
+from typing import Any
 
 from pydantic_settings import BaseSettings
 from pydantic import Field, field_validator
@@ -16,6 +17,17 @@ class Settings(BaseSettings):
     serpapi_api_key: str = Field(default="", alias="SERPAPI_API_KEY")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
+    glm_model: str = Field(default="glm-4.7-flash", alias="GLM_MODEL")
+    glm_vision_model: str = Field(default="glm-4.6v-flash", alias="GLM_VISION_MODEL")
+    glm_ocr_model: str = Field(default="glm-ocr", alias="GLM_OCR_MODEL")
+    glm_ocr_layout_endpoint: str = Field(
+        default="https://open.bigmodel.cn/api/paas/v4/layout_parsing",
+        alias="GLM_OCR_LAYOUT_ENDPOINT",
+    )
+    glm_ocr_timeout_seconds: int = Field(
+        default=30,
+        alias="GLM_OCR_TIMEOUT_SECONDS",
+    )
     llm_fallback_order: str = Field(
         default="gemini,glm,openrouter,qwen,manus,kimi,minimax,liquid",
         alias="LLM_FALLBACK_ORDER",
@@ -43,12 +55,18 @@ class Settings(BaseSettings):
     )
     openrouter_models: str = Field(
         default=(
-            "nousresearch/hermes-3-llama-3.1-405b:free,"
-            "openai/gpt-oss-120b:free,"
+            "z-ai/glm-4.5-air:free,"
+            "minimax/minimax-m2.5:free,"
             "google/gemma-4-31b-it:free,"
+            "openai/gpt-oss-120b:free,"
+            "nousresearch/hermes-3-llama-3.1-405b:free,"
             "nvidia/nemotron-3-nano-30b-a3b:free"
         ),
         alias="OPENROUTER_MODELS",
+    )
+    openrouter_max_models_per_eval: int = Field(
+        default=3,
+        alias="OPENROUTER_MAX_MODELS_PER_EVAL",
     )
     openrouter_reasoning_enabled: bool = Field(default=True, alias="OPENROUTER_REASONING_ENABLED")
     openrouter_site_url: str = Field(default="", alias="OPENROUTER_SITE_URL")
@@ -118,6 +136,48 @@ class Settings(BaseSettings):
         default=30,
         alias="EVALUATION_STALE_SWEEP_INTERVAL_SECONDS",
     )
+    lightonocr_enabled: bool = Field(default=False, alias="LIGHTONOCR_ENABLED")
+    lightonocr_base_url: str = Field(default="", alias="LIGHTONOCR_BASE_URL")
+    lightonocr_timeout_seconds: int = Field(default=45, alias="LIGHTONOCR_TIMEOUT_SECONDS")
+    lightonocr_health_timeout_seconds: int = Field(
+        default=3,
+        alias="LIGHTONOCR_HEALTH_TIMEOUT_SECONDS",
+    )
+    lightonocr_readiness_cache_seconds: int = Field(
+        default=15,
+        alias="LIGHTONOCR_READINESS_CACHE_SECONDS",
+    )
+    lightonocr_include_text_prompt: bool = Field(
+        default=False,
+        alias="LIGHTONOCR_INCLUDE_TEXT_PROMPT",
+    )
+    lightonocr_model_path: str = Field(default="", alias="LIGHTONOCR_MODEL_PATH")
+    lightonocr_mmproj_path: str = Field(default="", alias="LIGHTONOCR_MMPROJ_PATH")
+    lightonocr_require_local_paths: bool = Field(
+        default=False,
+        alias="LIGHTONOCR_REQUIRE_LOCAL_PATHS",
+    )
+    lightonocr_canary_percent: int = Field(default=0, alias="LIGHTONOCR_CANARY_PERCENT")
+    ocr_fallback_order: str = Field(
+        default="pdf_text,glm_ocr,lighton_ocr",
+        alias="OCR_FALLBACK_ORDER",
+    )
+    ocr_max_upload_bytes: int = Field(
+        default=25_000_000,
+        alias="OCR_MAX_UPLOAD_BYTES",
+    )
+    ocr_max_pages_sync_text: int = Field(
+        default=30,
+        alias="OCR_MAX_PAGES_SYNC_TEXT",
+    )
+    ocr_render_max_pixels: int = Field(
+        default=4_000_000,
+        alias="OCR_RENDER_MAX_PIXELS",
+    )
+    ocr_fallback_timeout_seconds: int = Field(
+        default=75,
+        alias="OCR_FALLBACK_TIMEOUT_SECONDS",
+    )
 
     # Service URLs
     database_url: str = Field(
@@ -169,6 +229,7 @@ class Settings(BaseSettings):
         "liquid_ai_base_url",
         "qwen_base_url",
         "manus_base_url",
+        "lightonocr_base_url",
         mode="before",
     )
     @classmethod
@@ -181,6 +242,74 @@ class Settings(BaseSettings):
     def _normalize_openrouter_url(cls, value: str) -> str:
         text = str(value or "").strip()
         return text.rstrip("/") if text else text
+
+    @field_validator("glm_ocr_layout_endpoint", mode="before")
+    @classmethod
+    def _normalize_glm_ocr_layout_endpoint(cls, value: str) -> str:
+        text = str(value or "").strip()
+        return text.rstrip("/") if text else text
+
+    @staticmethod
+    def _coerce_int(value: Any, default: int) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    @field_validator(
+        "llm_provider_timeout_seconds",
+        "evaluation_pipeline_timeout_seconds",
+        "glm_ocr_timeout_seconds",
+        "lightonocr_timeout_seconds",
+        "ocr_fallback_timeout_seconds",
+        mode="before",
+    )
+    @classmethod
+    def _clamp_timeout_values(cls, value: Any) -> int:
+        parsed = cls._coerce_int(value, 30)
+        return max(5, min(parsed, 1800))
+
+    @field_validator("lightonocr_health_timeout_seconds", mode="before")
+    @classmethod
+    def _clamp_lighton_health_timeout(cls, value: Any) -> int:
+        parsed = cls._coerce_int(value, 3)
+        return max(1, min(parsed, 30))
+
+    @field_validator("lightonocr_readiness_cache_seconds", mode="before")
+    @classmethod
+    def _clamp_lighton_cache_ttl(cls, value: Any) -> int:
+        parsed = cls._coerce_int(value, 15)
+        return max(0, min(parsed, 300))
+
+    @field_validator("lightonocr_canary_percent", mode="before")
+    @classmethod
+    def _clamp_lighton_canary_percent(cls, value: Any) -> int:
+        parsed = cls._coerce_int(value, 0)
+        return max(0, min(parsed, 100))
+
+    @field_validator("openrouter_max_models_per_eval", mode="before")
+    @classmethod
+    def _clamp_openrouter_max_models(cls, value: Any) -> int:
+        parsed = cls._coerce_int(value, 3)
+        return max(1, min(parsed, 8))
+
+    @field_validator("ocr_max_pages_sync_text", mode="before")
+    @classmethod
+    def _clamp_ocr_max_pages_sync_text(cls, value: Any) -> int:
+        parsed = cls._coerce_int(value, 30)
+        return max(1, min(parsed, 200))
+
+    @field_validator("ocr_max_upload_bytes", mode="before")
+    @classmethod
+    def _clamp_ocr_max_upload_bytes(cls, value: Any) -> int:
+        parsed = cls._coerce_int(value, 25_000_000)
+        return max(1_000_000, min(parsed, 200_000_000))
+
+    @field_validator("ocr_render_max_pixels", mode="before")
+    @classmethod
+    def _clamp_ocr_render_max_pixels(cls, value: Any) -> int:
+        parsed = cls._coerce_int(value, 4_000_000)
+        return max(250_000, min(parsed, 40_000_000))
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

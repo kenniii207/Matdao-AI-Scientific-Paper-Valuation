@@ -5,6 +5,7 @@ import json
 import asyncio
 import time
 import uuid
+import base64
 from datetime import UTC, datetime, timedelta
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends
 from typing import Any
@@ -19,6 +20,7 @@ from backend.core.config import settings
 from backend.core.json_utils import coerce_jsonable
 from backend.models.types import JsonDict
 from backend.api.adapters.glm_ocr_adapter import GLMOCRAdapter
+from backend.api.adapters.lighton_ocr_adapter import LightOnOCRAdapter
 from backend.services.research_enrichment import (
     build_document_profile,
     build_external_enrichment,
@@ -33,6 +35,16 @@ _EVALUATION_SEMAPHORE = asyncio.Semaphore(max(1, int(settings.max_parallel_evalu
 _QUEUE_WORKER_ID = f"eval-worker-{uuid.uuid4().hex[:10]}"
 _WORKER_STOP_EVENT = asyncio.Event()
 _WORKER_TASKS: list[asyncio.Task[None]] = []
+_OCR_MEANINGFUL_TEXT_LEN = 300
+_OCR_MIN_ACCEPTABLE_TEXT_LEN = 80
+_OCR_SAMPLE_PAGES = 3
+_LIGHTON_PREFLIGHT_CACHE: dict[str, Any] = {
+    "checked_monotonic": 0.0,
+    "checked_unix": 0.0,
+    "error": "not_checked",
+    "enabled": False,
+    "base_url": "",
+}
 
 DOI_REGEX = re.compile(r"10\.\d{4,9}/[-._;()/:A-Z0-9]+", re.IGNORECASE)
 
@@ -65,6 +77,174 @@ def _is_likely_pdf(file: UploadFile, contents: bytes) -> bool:
     if content_type in {"application/octet-stream", "binary/octet-stream"}:
         return has_pdf_header or filename_pdf
     return has_pdf_header or filename_pdf
+
+
+def _resolve_ocr_fallback_order(config_value: str | None = None) -> list[str]:
+    allowed = {"pdf_text", "glm_ocr", "lighton_ocr"}
+    raw = str(config_value if config_value is not None else settings.ocr_fallback_order)
+    configured = [item.strip().lower() for item in raw.split(",") if item.strip()]
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in configured:
+        if item not in allowed or item in seen:
+            continue
+        seen.add(item)
+        deduped.append(item)
+    if not deduped:
+        return ["pdf_text", "glm_ocr", "lighton_ocr"]
+    if "pdf_text" not in deduped:
+        deduped.insert(0, "pdf_text")
+    return deduped
+
+
+def _build_ocr_quality_signals(
+    *,
+    provider: str,
+    fallback_used: bool,
+    error_chain: dict[str, str],
+    model_id: str | None,
+) -> JsonDict:
+    return {
+        "ocr_provider": provider,
+        "ocr_fallback_used": fallback_used,
+        "ocr_error_chain": error_chain,
+        "ocr_model_id": model_id or "none",
+    }
+
+
+def _safe_error_fragment(value: Any, max_len: int = 180) -> str:
+    text = str(value or "").replace("\n", " ").strip()
+    if not text:
+        return "unknown_error"
+    return text[:max_len]
+
+
+def _is_upload_size_exceeded(size_bytes: int, max_upload_bytes: int) -> bool:
+    return int(size_bytes) > max(1, int(max_upload_bytes))
+
+
+def _derive_client_error_code(error_value: str) -> str:
+    value = (error_value or "").lower()
+    if "timeout" in value:
+        return "timeout"
+    if "missing" in value or "not_configured" in value:
+        return "not_configured"
+    if "health" in value or "unhealthy" in value:
+        return "unhealthy"
+    if "skip" in value:
+        return "skipped"
+    if "empty" in value:
+        return "empty"
+    return "failed"
+
+
+def _client_safe_ocr_codes(error_chain: dict[str, str]) -> list[str]:
+    safe_codes: list[str] = []
+    for provider in ("pdf_text", "glm_ocr", "lighton_ocr", "ocr_chain"):
+        error_value = error_chain.get(provider)
+        if not error_value:
+            continue
+        safe_codes.append(f"{provider}:{_derive_client_error_code(error_value)}")
+    if not safe_codes:
+        safe_codes.append("ocr_chain:failed")
+    return safe_codes
+
+
+def _build_public_ocr_failure_detail(error_chain: dict[str, str]) -> str:
+    safe_codes = ",".join(_client_safe_ocr_codes(error_chain))
+    return (
+        "Extraction failed: Could not extract meaningful text from this PDF. "
+        f"It may be unreadable or image-only. error_codes={safe_codes}"
+    )
+
+
+def _merge_with_ocr_quality_signals(payload: JsonDict, ocr_quality_signals: JsonDict | None) -> JsonDict:
+    merged = dict(payload)
+    if isinstance(ocr_quality_signals, dict) and ocr_quality_signals:
+        merged["ocr_quality_signals"] = ocr_quality_signals
+    return merged
+
+
+def _compute_page_render_scale(width: float, height: float, max_pixels: int) -> float:
+    safe_width = max(1.0, float(width or 1.0))
+    safe_height = max(1.0, float(height or 1.0))
+    total_pixels = safe_width * safe_height
+    cap = max(1, int(max_pixels))
+    if total_pixels <= cap:
+        return 1.0
+    scale = (cap / total_pixels) ** 0.5
+    return max(0.1, min(1.0, scale))
+
+
+def _ocr_page_indices(total_pages: int, max_pages: int = _OCR_SAMPLE_PAGES) -> list[int]:
+    safe_pages = max(1, int(max_pages))
+    return list(range(min(max(0, int(total_pages)), safe_pages)))
+
+
+def _render_doc_page_base64(doc: fitz.Document, page_index: int, max_pixels: int) -> str:
+    page = doc[page_index]
+    scale = _compute_page_render_scale(page.rect.width, page.rect.height, max_pixels)
+    matrix = fitz.Matrix(scale, scale)
+    pix = page.get_pixmap(matrix=matrix, alpha=False)
+    img_bytes = pix.tobytes("png")
+    return base64.b64encode(img_bytes).decode("utf-8")
+
+
+def _should_route_lighton(request_key: str, canary_percent: int | None = None) -> bool:
+    percent = int(
+        settings.lightonocr_canary_percent if canary_percent is None else canary_percent
+    )
+    percent = max(0, min(100, percent))
+    if percent >= 100:
+        return True
+    if percent <= 0:
+        return False
+    seed = (request_key or "default").encode("utf-8")
+    bucket = int(hashlib.sha256(seed).hexdigest()[:8], 16) % 100
+    return bucket < percent
+
+
+async def _lighton_preflight_error() -> str | None:
+    ttl_seconds = max(0, int(settings.lightonocr_readiness_cache_seconds))
+    now_monotonic = time.monotonic()
+    cached_error = _LIGHTON_PREFLIGHT_CACHE.get("error")
+    checked_monotonic = float(_LIGHTON_PREFLIGHT_CACHE.get("checked_monotonic") or 0.0)
+    cache_matches_current = (
+        bool(_LIGHTON_PREFLIGHT_CACHE.get("enabled")) == bool(settings.lightonocr_enabled)
+        and str(_LIGHTON_PREFLIGHT_CACHE.get("base_url") or "") == str(settings.lightonocr_base_url or "")
+    )
+    if (
+        cache_matches_current
+        and
+        ttl_seconds > 0
+        and checked_monotonic > 0.0
+        and (now_monotonic - checked_monotonic) <= ttl_seconds
+        and isinstance(cached_error, (str, type(None)))
+    ):
+        return cached_error
+
+    if not settings.lightonocr_enabled:
+        computed_error: str | None = "lighton_disabled"
+    else:
+        contract_errors = LightOnOCRAdapter.runtime_contract_errors()
+        if contract_errors:
+            computed_error = ",".join(contract_errors)
+        else:
+            checker = LightOnOCRAdapter()
+            try:
+                if not await checker.health_check():
+                    computed_error = "lighton_health_check_failed"
+                else:
+                    computed_error = None
+            finally:
+                await checker.close()
+
+    _LIGHTON_PREFLIGHT_CACHE["checked_monotonic"] = now_monotonic
+    _LIGHTON_PREFLIGHT_CACHE["checked_unix"] = time.time()
+    _LIGHTON_PREFLIGHT_CACHE["error"] = computed_error
+    _LIGHTON_PREFLIGHT_CACHE["enabled"] = bool(settings.lightonocr_enabled)
+    _LIGHTON_PREFLIGHT_CACHE["base_url"] = str(settings.lightonocr_base_url or "")
+    return computed_error
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -401,6 +581,11 @@ async def _evaluate_and_score(paper_id: str) -> None:
                 .order_by(ExtractionLayer.created_at.desc())
                 .limit(1)
             )
+            existing_ocr_quality_signals: JsonDict = {}
+            if layer is not None and isinstance(layer.processed_data, dict):
+                maybe_ocr_signals = layer.processed_data.get("ocr_quality_signals")
+                if isinstance(maybe_ocr_signals, dict):
+                    existing_ocr_quality_signals = maybe_ocr_signals
             if layer is not None:
                 layer.status = "processing"
                 await session.commit()
@@ -419,6 +604,10 @@ async def _evaluate_and_score(paper_id: str) -> None:
                             doi=paper.doi or "",
                             document_profile=paper_profile,
                         )
+                        if layer is not None and isinstance(layer.processed_data, dict):
+                            ocr_signals = layer.processed_data.get("ocr_quality_signals")
+                            if isinstance(ocr_signals, dict):
+                                enriched_payload["ocr_quality_signals"] = ocr_signals
                         evaluator = ScientificEvaluator()
                         jsonable_payload = coerce_jsonable(enriched_payload)
                         eval_payload = await evaluator.evaluate_content(paper.raw_text or "", jsonable_payload)
@@ -471,7 +660,7 @@ async def _evaluate_and_score(paper_id: str) -> None:
                             **(eval_results.get("stage_timings_ms", {}) if isinstance(eval_results.get("stage_timings_ms"), dict) else {}),
                         }
                         layer.status = "error"
-                        layer.processed_data = {
+                        layer.processed_data = _merge_with_ocr_quality_signals({
                             "error": "llm_providers_unavailable",
                             "error_detail": str(eval_results.get("error") or "No structured scores"),
                             "document_profile": paper_profile,
@@ -479,7 +668,7 @@ async def _evaluate_and_score(paper_id: str) -> None:
                             "enriched_data": jsonable_enriched_data,
                             "stage_timings_ms": merged_stage_timings,
                             "pipeline_timed_out": timed_out,
-                        }
+                        }, existing_ocr_quality_signals)
                         await session.commit()
                     raise RuntimeError("llm_providers_unavailable")
 
@@ -562,7 +751,7 @@ async def _evaluate_and_score(paper_id: str) -> None:
                         **(eval_stage if isinstance(eval_stage, dict) else {}),
                     }
                     layer.status = "completed"
-                    layer.processed_data = {
+                    layer.processed_data = _merge_with_ocr_quality_signals({
                         "text_content": (paper.raw_text or "")[:5000],
                         "document_profile": paper_profile,
                         "eval_results": eval_results,
@@ -570,13 +759,15 @@ async def _evaluate_and_score(paper_id: str) -> None:
                         "stage_timings_ms": merged_stage_timings,
                         "pipeline_timed_out": timed_out,
                         "low_confidence_review": low_confidence,
-                    }
+                    }, existing_ocr_quality_signals)
                 await session.commit()
             except Exception as exc:
                 logger.exception("Background evaluation failed for paper %s", paper_id)
                 if layer is not None:
                     layer.status = "error"
-                    layer.processed_data = {"error": str(exc)}
+                    layer.processed_data = _merge_with_ocr_quality_signals({
+                        "error": str(exc),
+                    }, existing_ocr_quality_signals)
                     await session.commit()
                 raise
 
@@ -752,6 +943,27 @@ async def get_job_stats() -> JsonDict:
     }
 
 
+@router.get("/ocr/readiness")
+async def get_ocr_readiness() -> JsonDict:
+    lighton_error = await _lighton_preflight_error()
+    checked_unix = float(_LIGHTON_PREFLIGHT_CACHE.get("checked_unix") or 0.0)
+    cache_age = None
+    checked_at = None
+    if checked_unix > 0.0:
+        cache_age = max(0.0, round(time.time() - checked_unix, 3))
+        checked_at = datetime.fromtimestamp(checked_unix, UTC).isoformat()
+    return {
+        "ocr_fallback_order": _resolve_ocr_fallback_order(),
+        "lighton_enabled": bool(settings.lightonocr_enabled),
+        "lighton_canary_percent": max(0, min(100, int(settings.lightonocr_canary_percent))),
+        "lighton_require_local_paths": bool(settings.lightonocr_require_local_paths),
+        "lighton_ready": lighton_error is None,
+        "lighton_preflight_error": lighton_error,
+        "lighton_readiness_checked_at": checked_at,
+        "lighton_readiness_cache_age_seconds": cache_age,
+    }
+
+
 @router.post("/upload")
 async def upload_pdf(
     file: UploadFile = File(...),
@@ -761,9 +973,19 @@ async def upload_pdf(
 
     Extraction order:
     1) Native PDF text extraction (fast, best for born-digital PDFs)
-    2) GLM-OCR fallback on first page (optional; requires `ZAI_API_KEY`)
+    2) GLM-OCR fallback (layout parsing + vision fallback)
+    3) LightOnOCR fallback via external llama-server (optional; config-gated)
     """
     contents = await file.read()
+    max_upload_bytes = max(1_000_000, int(settings.ocr_max_upload_bytes))
+    if _is_upload_size_exceeded(len(contents), max_upload_bytes):
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "Upload rejected: PDF exceeds max supported size. "
+                f"max_bytes={max_upload_bytes}"
+            ),
+        )
     if not _is_likely_pdf(file, contents):
         raise HTTPException(
             status_code=400,
@@ -773,7 +995,7 @@ async def upload_pdf(
     synthetic_doi = f"10.matdao/{file_hash}"
 
     save_path = UPLOAD_DIR / f"{file_hash}.pdf"
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, save_path.write_bytes, contents)
 
     existing_paper = await session.scalar(
@@ -857,6 +1079,10 @@ async def upload_pdf(
     final_text = ""
     extraction_source = "pdf-text"
     extraction_start = time.perf_counter()
+    ocr_error_chain: dict[str, str] = {}
+    ocr_model_id: str | None = None
+    fallback_order = _resolve_ocr_fallback_order()
+    ocr_fallback_used = False
 
     doc: fitz.Document | None = None
     try:
@@ -865,44 +1091,127 @@ async def upload_pdf(
             raise HTTPException(status_code=400, detail="PDF contains no pages")
 
         text_parts: list[str] = []
-        for page in doc:
+        max_native_pages = max(1, int(settings.ocr_max_pages_sync_text))
+        for page_index, page in enumerate(doc):
+            if page_index >= max_native_pages:
+                break
             try:
                 text_parts.append(page.get_text("text"))
             except Exception:
                 continue
         native_text = "\n".join(text_parts).strip()
+        async def _run_ocr_fallback_chain() -> tuple[str, str, str | None, bool, dict[str, str]]:
+            local_error_chain: dict[str, str] = {}
+            local_text = ""
+            local_source = "pdf-text"
+            local_model_id: str | None = None
+            local_fallback_used = False
 
-        if native_text and len(native_text) >= 300:
-            final_text = native_text
-            extraction_source = "pdf-text"
-        else:
-            logger.info("Native PDF text extraction low. Trying GLM-OCR fallback on first page.")
-            if not settings.zai_api_key:
-                raise HTTPException(
-                    status_code=422,
-                    detail="Extraction failed: PDF has little/no embedded text. Configure `ZAI_API_KEY` for GLM-OCR fallback, or upload a text-based PDF.",
-                )
-            glm = GLMOCRAdapter()
-            try:
-                pix = doc[0].get_pixmap()
-                img_bytes = pix.tobytes("png")
-                import base64
+            ocr_page_images: list[tuple[int, str]] = []
+            render_errors: list[str] = []
+            page_indices = _ocr_page_indices(len(doc), _OCR_SAMPLE_PAGES)
+            for page_index in page_indices:
+                try:
+                    ocr_page_images.append(
+                        (
+                            page_index,
+                            _render_doc_page_base64(
+                                doc,
+                                page_index,
+                                int(settings.ocr_render_max_pixels),
+                            ),
+                        )
+                    )
+                except Exception as exc:
+                    render_errors.append(
+                        f"page_{page_index + 1}_render_failed:{_safe_error_fragment(exc)}"
+                    )
 
-                img_b64 = base64.b64encode(img_bytes).decode("utf-8")
-                glm_res = await glm.parse_image(img_b64)
-                final_text = (glm_res.get("text") or "").strip()
-                extraction_source = "glm-ocr-fallback"
-            except Exception as eg:
-                logger.error(f"GLM-OCR failed: {eg}")
-                raise HTTPException(
-                    status_code=422,
-                    detail=(
-                        "Extraction failed: PDF has little/no embedded text and OCR not working. "
-                        f"Details: {eg}"
-                    ),
-                ) from eg
-            finally:
-                await glm.close()
+            for method in fallback_order:
+                if method == "pdf_text":
+                    if native_text and len(native_text) >= _OCR_MEANINGFUL_TEXT_LEN:
+                        local_text = native_text
+                        local_source = "pdf-text"
+                        local_model_id = "native_pdf_text"
+                        break
+                    local_error_chain["pdf_text"] = "native_text_below_threshold"
+                    continue
+
+                if not ocr_page_images:
+                    local_error_chain[method] = (
+                        ";".join(render_errors[:2]) if render_errors else "ocr_page_render_failed"
+                    )
+                    continue
+
+                if method == "glm_ocr":
+                    if not settings.zai_api_key:
+                        local_error_chain["glm_ocr"] = "zai_api_key_missing"
+                        continue
+                    adapter = GLMOCRAdapter(timeout_seconds=int(settings.glm_ocr_timeout_seconds))
+                    provider_name = "glm_ocr"
+                    source_name = "glm-ocr-fallback"
+                    model_fallback_name = str(settings.glm_ocr_model)
+                elif method == "lighton_ocr":
+                    if not _should_route_lighton(file_hash):
+                        local_error_chain["lighton_ocr"] = (
+                            f"lighton_canary_skip:{int(settings.lightonocr_canary_percent)}"
+                        )
+                        continue
+                    preflight_error = await _lighton_preflight_error()
+                    if preflight_error:
+                        local_error_chain["lighton_ocr"] = preflight_error
+                        continue
+                    adapter = LightOnOCRAdapter()
+                    provider_name = "lighton_ocr"
+                    source_name = "lighton-ocr-fallback"
+                    model_fallback_name = "lightonocr"
+                else:
+                    continue
+
+                best_candidate = ""
+                provider_error = "empty_text_response"
+                try:
+                    for page_index, image_b64 in ocr_page_images:
+                        try:
+                            result = await adapter.parse_image(image_b64)
+                        except Exception as exc:
+                            provider_error = (
+                                f"page_{page_index + 1}:{_safe_error_fragment(exc)}"
+                            )
+                            continue
+                        candidate = str(result.get("text") or "").strip()
+                        if len(candidate) > len(best_candidate):
+                            best_candidate = candidate
+                            local_model_id = str(result.get("model_id") or model_fallback_name)
+                        if len(candidate) >= _OCR_MEANINGFUL_TEXT_LEN:
+                            break
+                finally:
+                    await adapter.close()
+
+                if best_candidate and len(best_candidate) >= _OCR_MIN_ACCEPTABLE_TEXT_LEN:
+                    local_text = best_candidate
+                    local_source = source_name
+                    local_fallback_used = True
+                    if not local_model_id:
+                        local_model_id = model_fallback_name
+                    break
+                local_error_chain[provider_name] = provider_error
+
+            return local_text, local_source, local_model_id, local_fallback_used, local_error_chain
+
+        try:
+            (
+                final_text,
+                extraction_source,
+                ocr_model_id,
+                ocr_fallback_used,
+                ocr_error_chain,
+            ) = await asyncio.wait_for(
+                _run_ocr_fallback_chain(),
+                timeout=max(5, int(settings.ocr_fallback_timeout_seconds)),
+            )
+        except asyncio.TimeoutError:
+            ocr_error_chain["ocr_chain"] = "ocr_fallback_timeout"
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
@@ -916,10 +1225,21 @@ async def upload_pdf(
             pass
 
     if not final_text or len(final_text.strip()) < 5:
-        logger.error("Extraction failed: No text recovered from PDF.")
+        logger.error("Extraction failed: No text recovered from PDF. chain=%s", ocr_error_chain)
+        layer.status = "error"
+        layer.processed_data = {
+            "error": "ocr_extraction_failed",
+            "ocr_error_chain": ocr_error_chain,
+            "ocr_public_codes": _client_safe_ocr_codes(ocr_error_chain),
+            "stage_timings_ms": {
+                "extract_ms": round((time.perf_counter() - extraction_start) * 1000, 2),
+            },
+        }
+        session.add(layer)
+        await session.commit()
         raise HTTPException(
-            status_code=422, 
-            detail="Extraction failed: Could not extract meaningful text from this PDF. It might be corrupted or entirely unreadable."
+            status_code=422,
+            detail=_build_public_ocr_failure_detail(ocr_error_chain),
         )
 
     detected_doi = _extract_doi(final_text) or synthetic_doi
@@ -940,6 +1260,12 @@ async def upload_pdf(
     layer.processed_data = {
         "text_content": final_text[:5000],
         "document_profile": parsed_profile,
+        "ocr_quality_signals": _build_ocr_quality_signals(
+            provider=extraction_source,
+            fallback_used=ocr_fallback_used,
+            error_chain=ocr_error_chain,
+            model_id=ocr_model_id,
+        ),
         "stage_timings_ms": {
             "extract_ms": round((time.perf_counter() - extraction_start) * 1000, 2),
         },
