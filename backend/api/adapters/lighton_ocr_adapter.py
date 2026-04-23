@@ -72,9 +72,21 @@ class LightOnOCRAdapter:
 
     async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
+            timeout = httpx.Timeout(
+                connect=min(10.0, float(self.timeout_seconds)),
+                read=float(self.timeout_seconds),
+                write=float(self.timeout_seconds),
+                pool=5.0,
+            )
+            limits = httpx.Limits(
+                max_connections=8,
+                max_keepalive_connections=4,
+                keepalive_expiry=20.0,
+            )
             self._client = httpx.AsyncClient(
                 headers={"Content-Type": "application/json"},
-                timeout=float(self.timeout_seconds),
+                timeout=timeout,
+                limits=limits,
             )
         return self._client
 

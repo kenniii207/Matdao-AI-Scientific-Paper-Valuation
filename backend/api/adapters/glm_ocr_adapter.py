@@ -63,8 +63,21 @@ class GLMOCRAdapter:
             headers = {"Content-Type": "application/json"}
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
+            timeout = httpx.Timeout(
+                connect=min(10.0, float(self.timeout_seconds)),
+                read=float(self.timeout_seconds),
+                write=float(self.timeout_seconds),
+                pool=5.0,
+            )
+            limits = httpx.Limits(
+                max_connections=8,
+                max_keepalive_connections=4,
+                keepalive_expiry=20.0,
+            )
             self._client = httpx.AsyncClient(
-                headers=headers, timeout=float(self.timeout_seconds)
+                headers=headers,
+                timeout=timeout,
+                limits=limits,
             )
         return self._client
 

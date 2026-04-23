@@ -32,12 +32,13 @@ router = APIRouter()
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 _EVALUATION_SEMAPHORE = asyncio.Semaphore(max(1, int(settings.max_parallel_evaluations)))
+_OCR_SEMAPHORE = asyncio.Semaphore(max(1, int(settings.ocr_max_parallel_chains)))
 _QUEUE_WORKER_ID = f"eval-worker-{uuid.uuid4().hex[:10]}"
 _WORKER_STOP_EVENT = asyncio.Event()
 _WORKER_TASKS: list[asyncio.Task[None]] = []
 _OCR_MEANINGFUL_TEXT_LEN = 300
 _OCR_MIN_ACCEPTABLE_TEXT_LEN = 80
-_OCR_SAMPLE_PAGES = 3
+_OCR_SAMPLE_PAGES = max(1, int(settings.ocr_sample_pages))
 _LIGHTON_PREFLIGHT_CACHE: dict[str, Any] = {
     "checked_monotonic": 0.0,
     "checked_unix": 0.0,
@@ -954,6 +955,9 @@ async def get_ocr_readiness() -> JsonDict:
         checked_at = datetime.fromtimestamp(checked_unix, UTC).isoformat()
     return {
         "ocr_fallback_order": _resolve_ocr_fallback_order(),
+        "ocr_sample_pages": max(1, int(settings.ocr_sample_pages)),
+        "ocr_max_parallel_chains": max(1, int(settings.ocr_max_parallel_chains)),
+        "ocr_render_max_pixels": max(250_000, int(settings.ocr_render_max_pixels)),
         "lighton_enabled": bool(settings.lightonocr_enabled),
         "lighton_canary_percent": max(0, min(100, int(settings.lightonocr_canary_percent))),
         "lighton_require_local_paths": bool(settings.lightonocr_require_local_paths),
@@ -1186,7 +1190,14 @@ async def upload_pdf(
                         if len(candidate) >= _OCR_MEANINGFUL_TEXT_LEN:
                             break
                 finally:
-                    await adapter.close()
+                    try:
+                        await adapter.close()
+                    except Exception as close_exc:
+                        logger.warning(
+                            "OCR adapter close failed for %s: %s",
+                            provider_name,
+                            _safe_error_fragment(close_exc),
+                        )
 
                 if best_candidate and len(best_candidate) >= _OCR_MIN_ACCEPTABLE_TEXT_LEN:
                     local_text = best_candidate
@@ -1200,16 +1211,17 @@ async def upload_pdf(
             return local_text, local_source, local_model_id, local_fallback_used, local_error_chain
 
         try:
-            (
-                final_text,
-                extraction_source,
-                ocr_model_id,
-                ocr_fallback_used,
-                ocr_error_chain,
-            ) = await asyncio.wait_for(
-                _run_ocr_fallback_chain(),
-                timeout=max(5, int(settings.ocr_fallback_timeout_seconds)),
-            )
+            async with _OCR_SEMAPHORE:
+                (
+                    final_text,
+                    extraction_source,
+                    ocr_model_id,
+                    ocr_fallback_used,
+                    ocr_error_chain,
+                ) = await asyncio.wait_for(
+                    _run_ocr_fallback_chain(),
+                    timeout=max(5, int(settings.ocr_fallback_timeout_seconds)),
+                )
         except asyncio.TimeoutError:
             ocr_error_chain["ocr_chain"] = "ocr_fallback_timeout"
     except Exception as e:
@@ -1221,8 +1233,8 @@ async def upload_pdf(
         try:
             if doc is not None:
                 doc.close()
-        except Exception:
-            pass
+        except Exception as close_exc:
+            logger.warning("PDF document close failed: %s", _safe_error_fragment(close_exc))
 
     if not final_text or len(final_text.strip()) < 5:
         logger.error("Extraction failed: No text recovered from PDF. chain=%s", ocr_error_chain)

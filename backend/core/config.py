@@ -174,6 +174,14 @@ class Settings(BaseSettings):
         default=4_000_000,
         alias="OCR_RENDER_MAX_PIXELS",
     )
+    ocr_sample_pages: int = Field(
+        default=3,
+        alias="OCR_SAMPLE_PAGES",
+    )
+    ocr_max_parallel_chains: int = Field(
+        default=2,
+        alias="OCR_MAX_PARALLEL_CHAINS",
+    )
     ocr_fallback_timeout_seconds: int = Field(
         default=75,
         alias="OCR_FALLBACK_TIMEOUT_SECONDS",
@@ -310,6 +318,18 @@ class Settings(BaseSettings):
     def _clamp_ocr_render_max_pixels(cls, value: Any) -> int:
         parsed = cls._coerce_int(value, 4_000_000)
         return max(250_000, min(parsed, 40_000_000))
+
+    @field_validator("ocr_sample_pages", mode="before")
+    @classmethod
+    def _clamp_ocr_sample_pages(cls, value: Any) -> int:
+        parsed = cls._coerce_int(value, 3)
+        return max(1, min(parsed, 10))
+
+    @field_validator("ocr_max_parallel_chains", mode="before")
+    @classmethod
+    def _clamp_ocr_max_parallel_chains(cls, value: Any) -> int:
+        parsed = cls._coerce_int(value, 2)
+        return max(1, min(parsed, 16))
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 
