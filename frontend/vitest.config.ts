@@ -6,6 +6,7 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     clearMocks: true,
+    mockReset: true,
     restoreMocks: true,
   },
   resolve: {

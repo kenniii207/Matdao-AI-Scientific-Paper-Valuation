@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import gsap from 'gsap';
 import AppFooter from '@/components/AppFooter';
 import AppHeader from '@/components/AppHeader';

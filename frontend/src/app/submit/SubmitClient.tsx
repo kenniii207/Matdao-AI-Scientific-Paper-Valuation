@@ -10,7 +10,6 @@ import AppFooter from '@/components/AppFooter';
 import { apiUrl, fetchWithTimeout } from '@/lib/api';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { WebGLShader } from '@/components/ui/web-gl-shader';
-import { LoadingScreen } from '@/components/ui/loading-screen';
 
 type UploadState = 'idle' | 'uploading' | 'error';
 type UploadPhase = 'idle' | 'uploading' | 'processing' | 'finalizing' | 'error';

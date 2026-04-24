@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type RouteParams = {
-  params: { paperId: string };
+  params: Promise<{ paperId: string }>;
 };
 
 function previewBackendMissingResponse() {
@@ -22,7 +22,8 @@ export async function GET(_request: Request, { params }: RouteParams) {
   const backendBaseUrl = resolveBackendBaseUrl();
   if (!backendBaseUrl) return previewBackendMissingResponse();
 
-  const paperId = encodeURIComponent(params.paperId || '');
+  const { paperId: rawPaperId } = await params;
+  const paperId = encodeURIComponent(rawPaperId || '');
   if (!paperId) return NextResponse.json({ error: 'Missing paper id.' }, { status: 400 });
 
   try {

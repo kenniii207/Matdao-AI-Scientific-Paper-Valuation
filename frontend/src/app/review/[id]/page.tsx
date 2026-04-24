@@ -1,23 +1,22 @@
 'use client';
 
 import Form from '@rjsf/core';
+import type { RJSFSchema, UiSchema } from '@rjsf/utils';
 import validator from '@rjsf/validator-ajv8';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import AppFooter from '@/components/AppFooter';
 import AppHeader from '@/components/AppHeader';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-interface PageProps {
-  params: { id: string };
-}
-
-export default function ExpertReviewPage({ params }: PageProps) {
-  const paperId = decodeURIComponent(params.id);
+export default function ExpertReviewPage() {
+  const { id } = useParams<{ id: string }>();
+  const paperId = decodeURIComponent(String(id ?? ''));
   const [submitted, setSubmitted] = useState(false);
 
-  const schema = useMemo(
+  const schema = useMemo<RJSFSchema>(
     () => ({
       title: 'Layer 3 — Expert Review Form',
       type: 'object',
@@ -39,7 +38,7 @@ export default function ExpertReviewPage({ params }: PageProps) {
     []
   );
 
-  const uiSchema = useMemo(
+  const uiSchema = useMemo<UiSchema>(
     () => ({
       reviewerName: { 'ui:placeholder': 'Name / handle' },
       dim3Notes: { 'ui:widget': 'textarea', 'ui:options': { rows: 5 } },

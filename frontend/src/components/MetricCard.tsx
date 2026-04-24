@@ -19,7 +19,7 @@ interface MetricCardProps {
   snippet?: string;
 }
 
-export function MetricCard({ id, name, percent, rationale, snippet }: MetricCardProps) {
+export function MetricCard({ name, percent, rationale, snippet }: MetricCardProps) {
   const [expanded, setExpanded] = useState(false);
 
   // SVG parameters

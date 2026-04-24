@@ -23,7 +23,7 @@ describe('GET /api/scoring/results/[paperId] proxy', () => {
     mockResolveBackendBaseUrl.mockReturnValue(null);
 
     const response = await GET(new Request('http://localhost/api/scoring/results/abc'), {
-      params: { paperId: 'abc' },
+      params: Promise.resolve({ paperId: 'abc' }),
     });
     const body = await response.json();
 
@@ -42,7 +42,7 @@ describe('GET /api/scoring/results/[paperId] proxy', () => {
     );
 
     const response = await GET(new Request('http://localhost/api/scoring/results/p%201'), {
-      params: { paperId: 'p 1' },
+      params: Promise.resolve({ paperId: 'p 1' }),
     });
     const body = await response.json();
 
@@ -58,7 +58,7 @@ describe('GET /api/scoring/results/[paperId] proxy', () => {
     fetchMock.mockRejectedValue(new Error('network down'));
 
     const response = await GET(new Request('http://localhost/api/scoring/results/abc'), {
-      params: { paperId: 'abc' },
+      params: Promise.resolve({ paperId: 'abc' }),
     });
     const body = await response.json();
 

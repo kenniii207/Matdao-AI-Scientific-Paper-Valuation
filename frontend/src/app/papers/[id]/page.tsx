@@ -82,7 +82,7 @@ export default function PaperResultsPage() {
         }
         setLoadingStatus('Running extraction, enrichment, and scoring pipeline...');
         consecutiveFailures = 0;
-      } catch (e) {
+      } catch {
         if (cancelled) return;
         consecutiveFailures += 1;
         setLoadingStatus(
